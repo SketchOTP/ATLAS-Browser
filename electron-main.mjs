@@ -58,11 +58,22 @@ function openExternalUrl(url) {
   if (browserWindow.isMinimized()) browserWindow.restore();
   browserWindow.show();
   browserWindow.focus();
-  browserWindow.webContents.send('atlas:app-command', { type: 'open-url', url });
+  sendToRenderer('atlas:app-command', { type: 'open-url', url });
 }
 
 function flushExternalUrls() {
   while (pendingExternalUrls.length) openExternalUrl(pendingExternalUrls.shift());
+}
+
+function sendToRenderer(channel, ...args) {
+  try {
+    if (!browserWindow || browserWindow.isDestroyed() || browserWindow.webContents.isDestroyed()) return false;
+    browserWindow.webContents.send(channel, ...args);
+    return true;
+  } catch (error) {
+    if (error?.message !== 'Object has been destroyed') console.error(`RENDERER_SEND_FAILED ${channel} ${error.message}`);
+    return false;
+  }
 }
 
 function isAllowedWebsitePopupUrl(value) {
@@ -113,8 +124,8 @@ function buildApplicationMenu() {
     {
       label: 'File',
       submenu: [
-        { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => browserWindow?.webContents.send('atlas:app-command', 'new-tab') },
-        { label: 'Close Current Tab', accelerator: 'CmdOrCtrl+W', click: () => browserWindow?.webContents.send('atlas:app-command', 'close-tab') },
+        { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => sendToRenderer('atlas:app-command', 'new-tab') },
+        { label: 'Close Current Tab', accelerator: 'CmdOrCtrl+W', click: () => sendToRenderer('atlas:app-command', 'close-tab') },
         { type: 'separator' },
         { label: 'Close Window', click: () => browserWindow?.close() },
         { role: 'quit' }
@@ -197,28 +208,28 @@ async function createWindow() {
   siteView = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: 'persist:atlas-browser', backgroundThrottling: false } });
   browserWindow.contentView.addChildView(siteView);
   siteView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-  privacyShield = new PrivacyShield({ onStatus: (status) => browserWindow?.webContents.send('atlas:privacy-status', status) });
+  privacyShield = new PrivacyShield({ onStatus: (status) => sendToRenderer('atlas:privacy-status', status) });
   privacyShield.attach(siteView.webContents.session, siteView.webContents);
   browserController = new BrowserController(() => siteView?.webContents, () => browserWindow);
   downloadManager = new DownloadManager({
     downloadsPath: process.env.ATLAS_DOWNLOADS_DIR || app.getPath('downloads'),
-    onEvent: (download) => browserWindow?.webContents.send('atlas:download-event', download),
+    onEvent: (download) => sendToRenderer('atlas:download-event', download),
     openPath: (downloadPath) => shell.openPath(downloadPath)
   });
   downloadManager.attach(siteView.webContents.session);
   siteView.webContents.setWindowOpenHandler(websiteWindowOpenHandler);
   siteView.webContents.on('did-create-window', configureWebsitePopup);
-  siteView.webContents.on('did-navigate', (_event, url) => browserWindow.webContents.send('atlas:navigated', url));
-  siteView.webContents.on('did-navigate-in-page', (_event, url) => browserWindow.webContents.send('atlas:navigated', url));
-  siteView.webContents.on('page-title-updated', (_event, title) => browserWindow.webContents.send('atlas:title', title));
-  siteView.webContents.on('page-favicon-updated', (_event, favicons) => browserWindow.webContents.send('atlas:favicon', favicons[0] || ''));
+  siteView.webContents.on('did-navigate', (_event, url) => sendToRenderer('atlas:navigated', url));
+  siteView.webContents.on('did-navigate-in-page', (_event, url) => sendToRenderer('atlas:navigated', url));
+  siteView.webContents.on('page-title-updated', (_event, title) => sendToRenderer('atlas:title', title));
+  siteView.webContents.on('page-favicon-updated', (_event, favicons) => sendToRenderer('atlas:favicon', favicons[0] || ''));
   siteView.webContents.on('context-menu', (_event, params) => {
     const selectedText = String(params.selectionText || '').trim();
     const template = [];
     if (selectedText) {
       template.push({
         label: 'Send to Library',
-        click: () => browserWindow?.webContents.send('atlas:send-selection-to-library', {
+        click: () => sendToRenderer('atlas:send-selection-to-library', {
           text: selectedText,
           url: params.pageURL || siteView.webContents.getURL(),
           title: siteView.webContents.getTitle() || 'Web excerpt'
@@ -239,22 +250,22 @@ async function createWindow() {
         const preferred = links.find((link) => link.rel.includes('icon'));
         return preferred?.href || new URL('/favicon.ico', location.href).href;
       })()`);
-      if (favicon) browserWindow.webContents.send('atlas:favicon', favicon);
+      if (favicon) sendToRenderer('atlas:favicon', favicon);
     } catch {}
   });
   siteView.webContents.on('did-fail-load', (_event, code, description, url) => console.error(`SITE_LOAD_FAILED ${code} ${description} ${url}`));
   siteView.webContents.on('render-process-gone', (_event, details) => {
     const url = siteView?.webContents.getURL() || '';
     console.error(`SITE_RENDERER_GONE ${details.reason} exit=${details.exitCode} ${url}`);
-    browserWindow?.webContents.send('atlas:site-health', { state: 'crashed', reason: details.reason, url });
+    sendToRenderer('atlas:site-health', { state: 'crashed', reason: details.reason, url });
     if (url && !siteView.webContents.isDestroyed()) setTimeout(() => siteView?.webContents.reload(), 500);
   });
   siteView.webContents.on('unresponsive', () => {
     const url = siteView?.webContents.getURL() || '';
     console.error(`SITE_UNRESPONSIVE ${url}`);
-    browserWindow?.webContents.send('atlas:site-health', { state: 'unresponsive', url });
+    sendToRenderer('atlas:site-health', { state: 'unresponsive', url });
   });
-  siteView.webContents.on('responsive', () => browserWindow?.webContents.send('atlas:site-health', { state: 'ready', url: siteView?.webContents.getURL() || '' }));
+  siteView.webContents.on('responsive', () => sendToRenderer('atlas:site-health', { state: 'ready', url: siteView?.webContents.getURL() || '' }));
   siteView.webContents.on('console-message', (_event, details) => {
     if (details.level === 'error' || details.level === 'warning') console.error(`SITE_CONSOLE_${details.level.toUpperCase()} ${details.sourceId}:${details.lineNumber} ${details.message}`);
   });
@@ -268,18 +279,18 @@ async function createWindow() {
   agentServer.configure(activeProviderConfig);
   agentServer.on('status', (status) => {
     agentStatus = status;
-    browserWindow?.webContents.send('atlas:agent-event', { method: 'atlas/status', params: status });
+    sendToRenderer('atlas:agent-event', { method: 'atlas/status', params: status });
   });
-  agentServer.on('event', (event) => browserWindow?.webContents.send('atlas:agent-event', event));
+  agentServer.on('event', (event) => sendToRenderer('atlas:agent-event', event));
   agentServer.on('log', (message) => console.error(`CODEX_APP_SERVER ${message.trim()}`));
   agentServer.start().catch((error) => {
     agentStatus = { state: 'error', message: error.message };
-    browserWindow?.webContents.send('atlas:agent-event', { method: 'atlas/status', params: agentStatus });
+    sendToRenderer('atlas:agent-event', { method: 'atlas/status', params: agentStatus });
   });
   await browserWindow.loadURL('http://localhost:48173/');
   rendererReady = true;
   flushExternalUrls();
-  browserWindow.on('closed', () => { rendererReady = false; });
+  browserWindow.on('closed', () => { rendererReady = false; browserWindow = null; siteView = null; });
   localTts.synthesize({ text: 'Ready.', voice: 'af_heart', speed: 1 }).then(() => console.log('KOKORO_WARMUP_READY')).catch((error) => console.error(`KOKORO_WARMUP ${error.message}`));
 }
 
@@ -292,7 +303,11 @@ async function executeAgentTool(params) {
       reject(new Error('ATLAS tool timed out.'));
     }, 30000);
     pendingAgentTools.set(requestId, { resolve, reject, timeout });
-    browserWindow.webContents.send('atlas:agent-tool-request', { requestId, ...params });
+    if (!sendToRenderer('atlas:agent-tool-request', { requestId, ...params })) {
+      clearTimeout(timeout);
+      pendingAgentTools.delete(requestId);
+      reject(new Error('ATLAS Browser window is unavailable.'));
+    }
   });
 }
 
@@ -331,7 +346,7 @@ ipcMain.handle('atlas:agent-provider-configure', async (_event, config) => {
   agentServer.configure(activeProviderConfig);
   try { agentStatus = await agentServer.start(); }
   catch (error) { agentStatus = { state: 'error', providerId, providerName: providerTemplates[providerId].name, message: error.message }; }
-  browserWindow?.webContents.send('atlas:agent-event', { method: 'atlas/status', params: agentStatus });
+  sendToRenderer('atlas:agent-event', { method: 'atlas/status', params: agentStatus });
   return agentStatus;
 });
 ipcMain.handle('atlas:agent-provider-test', () => agentServer.test());
