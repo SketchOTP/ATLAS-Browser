@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob: data:; connect-src 'self' https:; frame-src http: https: blob:; object-src 'self' blob:; base-uri 'self'" />
+  <title>ATLAS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Michroma&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="project-sidebar">
+      <div class="sidebar-top"><h1 class="atlas-title"><span>ATLAS</span></h1></div>
+      <label class="search"><span>⌕</span><input id="project-filter" placeholder="Find a project" /></label>
+      <nav class="project-quick-menu" aria-label="Project tools">
+        <button class="menu-item quick-menu-item selected" data-view="browser" data-tooltip="Browser" aria-label="Browser"><span class="menu-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/><circle cx="6.5" cy="6.5" r=".6"/><circle cx="9" cy="6.5" r=".6"/></svg></span><span id="tab-count" class="menu-count quick-tab-count" aria-label="Open tabs"></span></button>
+        <button class="menu-item quick-menu-item" data-view="tasks" data-tooltip="Tasks" aria-label="Tasks"><span class="menu-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="m8 9 2 2 4-4M8 16h8"/></svg></span><span id="task-count" class="menu-count quick-menu-count" aria-hidden="true"></span></button>
+        <button class="menu-item quick-menu-item" data-view="agent" data-tooltip="Agent" aria-label="Agent"><span class="menu-symbol agent-menu-symbol"><img src="/assets/atlas-mark.png" alt="" /></span></button>
+        <button class="menu-item quick-menu-item" data-view="library" data-tooltip="Library" aria-label="Library"><span class="menu-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5Z"/><path d="M4 5.5v16M8 7h8M8 11h8"/></svg></span><span id="resource-count" class="menu-count quick-menu-count" aria-hidden="true"></span></button>
+        <button class="menu-item quick-menu-item" data-view="notes" data-tooltip="Notes" aria-label="Notes"><span class="menu-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v11l-5 5H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M16 21v-5h5M7 8h10M7 12h7"/></svg></span><span id="note-count" class="menu-count quick-menu-count" aria-hidden="true"></span></button>
+        <button id="add-project" class="menu-item quick-menu-item quick-add-project" data-tooltip="New project" aria-label="Add project"><span class="quick-add-symbol" aria-hidden="true">+</span></button>
+      </nav>
+      <div id="projects" class="projects"></div>
+      <div id="codex-usage" class="sidebar-footer codex-usage" title="Loading Codex subscription usage"><div class="meter"><i id="codex-usage-meter"></i></div><div class="storage"><span>Agent Usage Remaining</span><span id="codex-usage-percent">—</span></div></div>
+    </aside>
+    <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Projects sidebar" aria-valuemin="210" aria-valuemax="460" aria-valuenow="268" tabindex="0"></div>
+    <main class="main">
+      <div class="tabbar"><div id="tabs" class="tabs"></div><button id="add-tab" class="new-tab" title="New tab">＋</button><div class="tabbar-spacer"></div><button id="settings-button" class="notification-button flat-neon-icon" title="ATLAS settings" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.55v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.3V9.55h.1A1.7 1.7 0 0 0 4.1 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.56 3.7l.06.06A1.7 1.7 0 0 0 8.5 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.3h4.05v.1A1.7 1.7 0 0 0 15 4.1a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.5a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4.05h-.1A1.7 1.7 0 0 0 19.4 15Z"/></svg></button><button id="notification-button" class="notification-button flat-neon-icon" title="Notifications" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M14.3 21a2.5 2.5 0 0 1-4.6 0"/></svg><span id="notification-badge" class="notification-badge hidden">0</span></button><button id="profile-button" class="top-avatar" title="Profiles"><img id="profile-avatar-image" class="hidden" alt="" /><span id="profile-avatar-text">U</span></button></div>
+      <div class="browser-toolbar"><button id="nav-back" class="nav-icon" title="Back">‹</button><button id="nav-forward" class="nav-icon" title="Forward">›</button><button id="nav-reload" class="nav-icon" title="Reload">↻</button><div class="address"><span class="lock">⌁</span><input id="address" value="" autocomplete="off" spellcheck="false" placeholder="Search or enter a URL" /><button id="go" title="Open URL">↵</button></div><button id="save-page" class="save-button">＋ Save to project</button></div>
+      <div id="bookmarks-bar" class="bookmarks-bar" aria-label="Project bookmarks"><div id="bookmark-buttons" class="bookmark-buttons"></div><div class="bookmark-actions"><button id="add-bookmark" class="bookmark-control bookmark-add" type="button" title="Add bookmark" aria-label="Add bookmark">＋</button><button id="manage-bookmarks" class="bookmark-control bookmark-manage" type="button" title="Manage bookmarks" aria-label="Manage bookmarks">⋮</button></div></div>
+      <div class="workspace">
+        <section id="browser-view" class="view browser-view">
+          <div class="browser-canvas"><iframe id="website-frame" class="website-surface" title="Current website"></iframe><div id="desktop-surface" class="desktop-surface hidden"><span>Loading website…</span></div><div id="browser-empty" class="browser-empty hidden"><img src="/assets/atlas-mark.png" alt="ATLAS" /></div><div id="frame-fallback" class="frame-fallback"><div class="fallback-icon">↗</div><h3>This website does not allow embedding</h3><p>Run the Electron desktop app to open every website inside this window.</p><button id="open-page" class="primary">Open website ↗</button></div></div>
+        </section>
+        <section id="tasks-view" class="view panel-view hidden"><div class="view-head"><div><div class="eyebrow">Project momentum</div><h2>Tasks</h2><p>Keep the next actions close to the work.</p></div><button id="add-task" class="primary">＋ Add task</button></div><div id="task-list" class="wide-task-list"></div></section>
+        <section id="agent-view" class="view agent-view hidden"><div class="agent-workspace"><aside class="agent-session-sidebar"><div class="agent-session-head"><div><span>AGENT SESSIONS</span><strong>Conversations</strong></div><button id="new-agent-session" title="New session">＋</button></div><div id="agent-session-list" class="agent-session-list"></div></aside><div class="agent-chat-shell"><header class="agent-chat-header"><div class="agent-chat-identity"><span class="agent-avatar"><img class="agent-brand-image" src="/assets/atlas-mark.png" alt="ATLAS Agent" /></span><div><strong id="agent-session-title">New conversation</strong><span id="agent-project-label">All projects</span></div></div><div class="agent-header-controls"><label class="agent-scope-label"><span>Scope</span><select id="agent-project-scope"><option value="">All projects</option></select></label><span id="agent-status" class="agent-live large">● CONNECTING</span></div></header><div id="agent-context-meter" class="agent-context-meter"><i></i><span>0% context</span></div><div id="agent-messages" class="agent-messages"></div><div id="agent-empty" class="agent-empty"><div class="agent-orb"><img class="agent-brand-image" src="/assets/atlas-mark.png" alt="ATLAS Agent" /></div><h2>What should we move forward?</h2><p>Select one project to keep the session contained, or use All projects for cross-project work.</p><div class="suggestions"><button data-prompt="What should I work on next?">What should I work on next?</button><button data-prompt="Summarize this project">Summarize this project</button><button data-prompt="Find gaps in my research">Find gaps in my research</button></div></div><div class="agent-composer-wrap"><div class="agent-composer"><textarea id="agent-input" rows="1" placeholder="Message the ATLAS agent..."></textarea><button id="voice-agent" class="voice-agent" title="Start conversation mode" aria-label="Start conversation mode">◉</button><button id="send-agent" title="Send message">↑</button></div><small><span id="agent-model-label">Codex · GPT-5.6-Luna · Medium</span><span id="agent-activity"></span></small></div></div></div></section>
+        <section id="library-view" class="view panel-view hidden"><div class="view-head"><div><div class="eyebrow">Project library</div><h2>Library</h2><p>Everything saved for this project, ready for the agent.</p></div><button id="add-resource" class="primary">＋ Add resource</button></div><div id="resource-list" class="wide-resource-list"></div></section>
+        <section id="notes-view" class="view panel-view hidden"><div class="view-head"><div><div class="eyebrow">Working memory</div><h2>Notes</h2><p>Short, durable context for the project.</p></div><button id="add-note" class="primary">＋ New note</button></div><div id="note-list" class="wide-note-grid"></div></section>
+      </div>
+    </main>
+  </div>
+  <div id="agent-tray" class="agent-tray hidden" role="region" aria-label="ATLAS agent quick controls">
+    <div id="agent-tray-resizer" class="agent-tray-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Agent tray" aria-valuemin="72" aria-valuemax="420" aria-valuenow="76" tabindex="0"></div>
+    <button id="expand-agent-tray" class="agent-tray-identity" type="button" title="Open full agent"><span class="agent-tray-copy"><strong id="agent-tray-title">ATLAS Agent</strong><small id="agent-tray-scope">All projects</small></span></button>
+    <div class="agent-tray-center"><div id="agent-tray-preview" class="agent-tray-preview"></div><textarea id="agent-tray-input" rows="1" placeholder="What can I help you with?"></textarea></div>
+    <span id="agent-tray-status" class="agent-tray-status">READY</span><button id="agent-tray-voice" class="agent-tray-action" type="button" title="Start conversation mode" aria-label="Start conversation mode">◉</button><button id="agent-tray-send" class="agent-tray-send" type="button" title="Send instruction">↑</button>
+  </div>
+  <div id="project-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+    <form id="project-form" class="project-modal">
+      <div class="modal-head"><div><div class="eyebrow">Project settings</div><h2 id="project-modal-title">Create project</h2></div><button id="close-project-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <div class="project-editor-grid">
+        <div class="project-fields">
+          <label class="field"><span>Display name</span><input id="project-name" type="text" maxlength="80" required autocomplete="off" placeholder="Project name" /></label>
+          <label class="field"><span>Status</span><select id="project-status" required><option value="Active P1">Active P1</option><option value="Active P2">Active P2</option><option value="Active P3">Active P3</option><option value="Planning">Planning</option><option value="Researching">Researching</option><option value="On Hold">On Hold</option><option value="Cancelled">Cancelled</option><option value="Abandoned">Abandoned</option></select></label>
+          <div class="project-color-field"><span>Project bubble color</span><div class="color-controls"><input id="project-color" type="color" value="#b026ff" title="Open full color picker" /><input id="project-color-hex" type="text" maxlength="7" value="#B026FF" aria-label="Project color hex value" /><button id="project-eyedropper" type="button" title="Pick a color from the screen">⌾ Pick</button></div><div class="color-swatches" aria-label="Quick project colors"><button type="button" data-project-color="#B026FF" style="--swatch:#B026FF" title="Neon violet"></button><button type="button" data-project-color="#00E5FF" style="--swatch:#00E5FF" title="Electric cyan"></button><button type="button" data-project-color="#39FF88" style="--swatch:#39FF88" title="Laser green"></button><button type="button" data-project-color="#FFB000" style="--swatch:#FFB000" title="Neon amber"></button><button type="button" data-project-color="#FF2BD6" style="--swatch:#FF2BD6" title="Hot pink"></button><button type="button" data-project-color="#7A5CFF" style="--swatch:#7A5CFF" title="Electric indigo"></button></div><div id="project-color-sample" class="project-color-sample">Project bubble preview</div></div>
+          <div class="project-icon-mode-field"><span>Project icon</span><div class="project-icon-mode" role="group" aria-label="Project icon type"><button type="button" class="selected" data-project-icon-mode="image">Image</button><button type="button" data-project-icon-mode="emoji">Emoji</button></div></div>
+          <div id="project-image-zoom-control" class="zoom-control"><label for="project-image-zoom">Crop zoom</label><input id="project-image-zoom" type="range" min="1" max="3" step="0.01" value="1" disabled /></div>
+        </div>
+        <div class="crop-column">
+          <div id="project-image-editor" class="project-image-editor"><input id="project-image-input" class="hidden-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" tabindex="-1" /><div id="crop-stage" class="crop-stage project-upload-stage" role="button" tabindex="0" aria-label="Upload or reposition project image"><img id="crop-image" class="hidden" alt="Project image crop" draggable="false" /><div id="crop-placeholder" class="crop-placeholder"><span>▧</span><p>Click to upload an image</p><small>PNG, JPG, WebP, or GIF</small></div></div><div class="crop-preview-row"><canvas id="crop-preview" width="64" height="64" aria-label="Cropped project image preview"></canvas><div><strong>Display preview</strong><span>Click to replace. Drag to reposition.</span></div></div></div>
+          <div id="project-emoji-editor" class="project-emoji-editor hidden"><div id="project-emoji-preview" class="project-emoji-preview" aria-label="Selected project emoji">🚀</div><label class="emoji-search project-emoji-search"><span aria-hidden="true">⌕</span><input id="project-emoji-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search emojis…" aria-label="Search project emojis" /></label><div id="project-emoji-grid" class="emoji-grid project-emoji-grid" aria-label="Project emoji choices"></div></div>
+        </div>
+      </div>
+      <div class="modal-actions"><button id="delete-project" class="danger-button hidden" type="button">Delete project</button><span class="modal-spacer"></span><button id="cancel-project" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save project</button></div>
+    </form>
+  </div>
+  <div id="profile-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+    <div class="project-modal profile-modal">
+      <div class="modal-head"><div><div class="eyebrow">Separate environments</div><h2 id="profile-modal-title">Profiles</h2></div><button id="close-profile-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <div class="profile-manager-grid">
+        <aside class="profile-list-column"><button id="new-profile" class="primary profile-new-button" type="button">＋ New profile</button><div id="profile-list" class="profile-list"></div><p>Each profile keeps its own projects, tabs, tasks, notes, and library.</p></aside>
+        <form id="profile-form" class="profile-form">
+          <div class="profile-editor-grid">
+            <div class="project-fields">
+              <label class="field"><span>Profile name</span><input id="profile-name" maxlength="80" required placeholder="Display name" /></label>
+              <label class="field"><span>Email address</span><input id="profile-email" type="email" maxlength="160" required placeholder="name@example.com" /></label>
+              <label class="image-upload"><input id="profile-image-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /><span>Upload profile image</span><small>PNG, JPG, WebP, or GIF</small></label>
+              <div class="zoom-control"><label for="profile-image-zoom">Crop zoom</label><input id="profile-image-zoom" type="range" min="1" max="3" step="0.01" value="1" disabled /></div>
+            </div>
+            <div class="crop-column profile-crop-column">
+              <div id="profile-crop-stage" class="crop-stage profile-crop-stage"><img id="profile-crop-image" class="hidden" alt="Profile image crop" draggable="false" /><div id="profile-crop-placeholder" class="crop-placeholder"><span>◎</span><p>Upload an image</p></div></div>
+              <div class="crop-preview-row profile-preview-row"><canvas id="profile-crop-preview" width="64" height="64" aria-label="Cropped profile image preview"></canvas><div><strong>Profile preview</strong><span>This is how your image appears in the header.</span></div></div>
+            </div>
+          </div>
+          <div class="modal-actions"><button id="use-profile" class="secondary-button hidden" type="button">Use this profile</button><span class="modal-spacer"></span><button id="cancel-profile" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save profile</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div id="resource-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="resource-modal-title">
+    <form id="resource-form" class="project-modal resource-modal">
+      <div class="modal-head"><div><div class="eyebrow">Project library</div><h2 id="resource-modal-title">Add resource</h2></div><button id="close-resource-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <div class="resource-form-grid">
+        <label class="field"><span>Resource type</span><select id="resource-type"><option value="url">Website URL</option><option value="text">Text document</option><option value="pdf">PDF file</option><option value="image">Picture</option></select></label>
+        <label class="field"><span>Title</span><input id="resource-title" maxlength="140" required placeholder="Resource title" /></label>
+        <label id="resource-url-field" class="field"><span>URL</span><input id="resource-url" type="url" placeholder="https://example.com" /></label>
+        <label id="resource-text-field" class="field hidden"><span>Document text</span><textarea id="resource-text" rows="12" placeholder="Paste or write the document here..."></textarea></label>
+        <label id="resource-file-field" class="image-upload hidden"><input id="resource-file" type="file" /><span id="resource-file-label">Choose a file</span><small id="resource-file-help">PDF or image</small></label>
+        <div id="resource-selected-file" class="selected-file hidden"></div>
+      </div>
+      <div class="modal-actions"><button id="delete-resource" class="danger-button hidden" type="button">Remove resource</button><span class="modal-spacer"></span><button id="cancel-resource" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save resource</button></div>
+    </form>
+  </div>
+  <div id="resource-viewer-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="resource-viewer-title">
+    <div class="project-modal resource-viewer-modal"><div class="modal-head"><div><div id="resource-viewer-type" class="eyebrow">Library resource</div><h2 id="resource-viewer-title">Resource</h2></div><button id="close-resource-viewer" class="modal-close" type="button" aria-label="Close">×</button></div><div id="resource-viewer-content" class="resource-viewer-content"></div></div>
+  </div>
+  <div id="task-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+    <form id="task-form" class="project-modal task-modal">
+      <div class="modal-head"><div><div class="eyebrow">Project task</div><h2 id="task-modal-title">Add task</h2></div><button id="close-task-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <div class="project-fields"><label class="field"><span>Task title</span><input id="task-title-input" maxlength="180" required placeholder="What needs to be done?" /></label><label class="field"><span>Due date and time</span><input id="task-due-input" type="datetime-local" /></label><label class="field"><span>Priority</span><select id="task-priority-input"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label></div>
+      <div class="modal-actions"><button id="delete-task" class="danger-button hidden" type="button">Delete task</button><span class="modal-spacer"></span><button id="cancel-task" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save task</button></div>
+    </form>
+  </div>
+  <div id="note-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="note-modal-title">
+    <form id="note-form" class="project-modal note-modal">
+      <div class="modal-head"><div><div class="eyebrow">Project note</div><h2 id="note-modal-title">New note</h2></div><button id="close-note-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <label class="field"><span>Note title</span><input id="note-title-input" maxlength="180" required placeholder="Give this note a name" /></label>
+      <div class="note-toolbar" role="toolbar" aria-label="Text formatting">
+        <select id="note-font" title="Font family"><option value="Manrope">Manrope</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="'Times New Roman'">Times New Roman</option><option value="'Courier New'">Courier New</option></select>
+        <select id="note-size" title="Font size"><option value="2">Small</option><option value="3" selected>Normal</option><option value="4">Large</option><option value="5">Heading</option><option value="6">Title</option></select>
+        <span class="toolbar-divider"></span><button type="button" data-note-command="bold" title="Bold"><strong>B</strong></button><button type="button" data-note-command="italic" title="Italic"><em>I</em></button><button type="button" data-note-command="underline" title="Underline"><u>U</u></button><button type="button" data-note-command="strikeThrough" title="Strikethrough"><s>S</s></button>
+        <span class="toolbar-divider"></span><button type="button" data-note-command="insertUnorderedList" title="Bulleted list">• List</button><button type="button" data-note-command="insertOrderedList" title="Numbered list">1. List</button><button id="note-link" type="button" title="Add link">🔗</button><label class="note-color-label" title="Text color"><input id="note-color" type="color" value="#eae7f2" /><span>A</span></label>
+      </div>
+      <div id="note-editor" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write your note here..."></div>
+      <div class="modal-actions"><button id="delete-note" class="danger-button hidden" type="button">Delete note</button><span class="modal-spacer"></span><button id="cancel-note" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save note</button></div>
+    </form>
+  </div>
+  <div id="settings-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+    <form id="settings-form" class="project-modal settings-modal">
+      <div class="modal-head"><div><div class="eyebrow">ATLAS preferences</div><h2 id="settings-modal-title">Settings</h2></div><button id="close-settings-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <div class="settings-grid">
+        <section><h3>Browser</h3><label class="field"><span>Default page for new tabs</span><input id="default-page-url" type="text" inputmode="url" placeholder="Leave blank for a blank page" autocomplete="off" /></label><p>When set, the tab + button opens this page. Leave it empty to open a blank tab.</p><button id="replay-walkthrough" class="secondary-button walkthrough-replay" type="button">Replay ATLAS walkthrough</button></section>
+        <section class="agent-provider-settings">
+          <h3>Agent provider</h3>
+          <label class="field"><span>Provider</span><select id="agent-provider"></select></label>
+          <div class="provider-field-grid"><label class="field"><span>Model</span><input id="agent-provider-model" autocomplete="off" placeholder="Provider default" /></label><label class="field"><span>CLI executable</span><input id="agent-provider-executable" autocomplete="off" spellcheck="false" placeholder="codex" /></label></div>
+          <label class="field"><span>Reasoning effort</span><select id="agent-reasoning-effort"><option value="low">Light</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option></select></label>
+          <div id="agent-provider-capabilities" class="provider-capabilities"></div>
+          <div class="provider-actions"><button id="agent-provider-login" class="secondary-button" type="button">Sign in with provider</button><button id="agent-provider-test" class="secondary-button" type="button">Test connection</button><span id="agent-provider-status"></span></div>
+          <details class="provider-advanced"><summary>Advanced provider configuration</summary><label class="field"><span>Prompt arguments, one per line</span><textarea id="agent-provider-args" rows="4" spellcheck="false" placeholder="-p&#10;{prompt}&#10;--output-format&#10;json"></textarea></label><label class="field"><span>OAuth / sign-in command</span><textarea id="agent-provider-auth-command" rows="2" spellcheck="false"></textarea></label><label class="field"><span>Status command</span><textarea id="agent-provider-status-command" rows="2" spellcheck="false"></textarea></label></details>
+          <div id="openai-compatible-settings" class="provider-endpoint-settings hidden"><label class="field"><span>OpenAI-compatible base URL</span><input id="agent-provider-base-url" type="url" autocomplete="off" placeholder="https://api.example.com/v1" /></label><label class="field"><span>API key</span><input id="agent-provider-api-key" type="password" autocomplete="new-password" placeholder="Stored encrypted on this device" /></label></div>
+          <label class="field"><span>Usage remaining source</span><select id="agent-usage-mode"><option value="native">Provider-native</option><option value="command">CLI command</option><option value="manual">Manual percentage</option><option value="none">Unavailable</option></select></label>
+          <label id="agent-usage-command-field" class="field hidden"><span>Usage command</span><textarea id="agent-usage-command" rows="2" spellcheck="false"></textarea></label><label id="agent-usage-manual-field" class="field hidden"><span>Usage remaining (%)</span><input id="agent-usage-manual" type="number" min="0" max="100" step="1" /></label>
+          <label class="field"><span>Automatic compaction</span><select id="agent-compaction-threshold"><option value="0.70">At 70% context</option><option value="0.78">At 78% context</option><option value="0.85">At 85% context</option></select></label>
+          <p>OAuth providers sign in through their own CLI. ATLAS never copies their OAuth tokens. Optional endpoint keys are encrypted by the desktop app.</p>
+        </section>
+        <section><h3>Local voice</h3><label class="field"><span>Kokoro neural voice</span><select id="tts-voice"></select></label><label class="field"><span>Speaking speed</span><select id="tts-speed"><option value="0.85">Relaxed · 0.85×</option><option value="1">Natural · 1.0×</option><option value="1.1">Quick · 1.1×</option><option value="1.2">Fast · 1.2×</option></select></label><button id="test-tts-voice" class="secondary-button voice-preview-button" type="button">▶ Preview selected voice</button><label class="field"><span>Whisper microphone model</span><select id="stt-model"><option value="tiny.en">Tiny English · fastest</option><option value="base.en">Base English · balanced</option><option value="small.en">Small English · highest quality</option></select></label><label class="toggle-field"><input id="auto-speak" type="checkbox" /><span>Read agent responses aloud</span></label><p>Kokoro generates the speaking voice locally. Whisper is used only to transcribe your microphone.</p></section>
+      </div>
+      <div class="modal-actions"><span class="modal-spacer"></span><button id="cancel-settings" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save settings</button></div>
+    </form>
+  </div>
+  <div id="bookmark-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="bookmark-modal-title">
+    <form id="bookmark-form" class="project-modal bookmark-modal">
+      <div class="modal-head"><div><div class="eyebrow">Project bookmark</div><h2 id="bookmark-modal-title">Add bookmark</h2></div><button id="close-bookmark-modal" class="modal-close" type="button" aria-label="Close">×</button></div>
+      <div class="project-fields">
+        <label class="field"><span>Bookmark title</span><input id="bookmark-title" type="text" maxlength="80" required autocomplete="off" placeholder="Button title" /></label>
+        <label class="field"><span>Website URL</span><input id="bookmark-url" type="text" inputmode="url" required autocomplete="off" placeholder="https://example.com" /></label>
+        <div class="project-color-field"><span>Bookmark button color</span><div class="color-controls"><input id="bookmark-color" type="color" value="#B026FF" title="Open full color picker" /><input id="bookmark-color-hex" type="text" maxlength="7" value="#B026FF" aria-label="Bookmark color hex value" /><button id="bookmark-eyedropper" type="button" title="Pick a color from the screen">⌾ Pick</button></div><div class="color-swatches" aria-label="Quick bookmark colors"><button type="button" data-bookmark-color="#B026FF" style="--swatch:#B026FF" title="Neon violet"></button><button type="button" data-bookmark-color="#00E5FF" style="--swatch:#00E5FF" title="Electric cyan"></button><button type="button" data-bookmark-color="#39FF88" style="--swatch:#39FF88" title="Laser green"></button><button type="button" data-bookmark-color="#FFB000" style="--swatch:#FFB000" title="Neon amber"></button><button type="button" data-bookmark-color="#FF2BD6" style="--swatch:#FF2BD6" title="Hot pink"></button><button type="button" data-bookmark-color="#7A5CFF" style="--swatch:#7A5CFF" title="Electric indigo"></button></div><div id="bookmark-color-sample" class="project-color-sample">Bookmark preview</div></div>
+        <label class="bookmark-scope-toggle"><span><strong>Apply to all projects</strong><small id="bookmark-scope-state">This project only</small></span><input id="bookmark-apply-all" type="checkbox" /><span class="bookmark-toggle-track" aria-hidden="true"><i></i></span></label>
+      </div>
+      <div class="modal-actions"><span class="modal-spacer"></span><button id="cancel-bookmark" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save bookmark</button></div>
+    </form>
+  </div>
+  <div id="bookmark-manager" class="bookmark-manager hidden" role="dialog" aria-label="Manage project bookmarks"><div class="bookmark-manager-head"><div><span>THIS PROJECT</span><strong>Bookmarks</strong></div><button id="close-bookmark-manager" type="button" aria-label="Close">×</button></div><div id="bookmark-manager-list" class="bookmark-manager-list"></div></div>
+  <div id="walkthrough-overlay" class="walkthrough-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="walkthrough-title"><div id="walkthrough-highlight" class="walkthrough-highlight" aria-hidden="true"></div><div id="walkthrough-card" class="walkthrough-card"><div class="eyebrow">ATLAS walkthrough</div><h2 id="walkthrough-title"></h2><p id="walkthrough-copy"></p><div class="walkthrough-footer"><span id="walkthrough-progress"></span><div><button id="walkthrough-skip" class="secondary-button" type="button">Skip</button><button id="walkthrough-back" class="secondary-button" type="button">Back</button><button id="walkthrough-next" class="primary" type="button">Next</button></div></div></div></div>
+  <div id="notification-popover" class="notification-popover hidden" role="dialog" aria-label="Unread notifications"><div class="notification-head"><strong>Notifications</strong><button id="close-notifications" type="button">×</button></div><div id="notification-list" class="notification-list"></div></div>
+  <div id="emoji-picker" class="emoji-picker hidden" role="dialog" aria-label="Choose a tab emoji">
+    <div class="emoji-picker-head"><strong>Choose an emoji</strong><button id="close-emoji-picker" type="button" aria-label="Close">×</button></div>
+    <label class="emoji-search"><span aria-hidden="true">⌕</span><input id="emoji-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search emojis…" aria-label="Search emojis" /></label>
+    <button id="use-favicon" class="favicon-option" type="button"><span id="favicon-option-preview" class="favicon-option-preview">🌐</span><span><strong>Use website favicon</strong><small>Automatically use the icon supplied by this website</small></span><span class="favicon-option-check">✓</span></button>
+    <div id="emoji-grid" class="emoji-grid"></div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
