@@ -1,3 +1,5 @@
+import { microsoftFidoFallbackUrl } from './auth-compatibility.mjs';
+
 const privacyModes = new Set(['off', 'balanced', 'strict']);
 
 const balancedTrackers = new Set([
@@ -78,6 +80,10 @@ export class PrivacyShield {
 
     const filter = { urls: ['http://*/*', 'https://*/*'] };
     browserSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+      if (details.resourceType === 'mainFrame') {
+        const authenticationFallback = microsoftFidoFallbackUrl(details.url);
+        if (authenticationFallback) return callback({ redirectURL: authenticationFallback });
+      }
       if (this.mode === 'off') return callback({});
       let hostname = '';
       try { hostname = new URL(details.url).hostname; } catch {}

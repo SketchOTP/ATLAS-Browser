@@ -1631,6 +1631,13 @@ function closeEmojiPicker() { emojiTabId = null; $('emoji-picker').classList.add
 function editTabIcon(tabId, anchor) { openEmojiPicker(tabId, anchor); }
 function closeTab(tabId) { const item = currentProject(); item.tabs = item.tabs.filter((tab) => tab.id !== tabId); activeTabId = item.tabs[0]?.id; save(); render(); toast('Tab closed'); }
 function normalizeAddress(value) { const input = value.trim(); if (!input) return ''; if (/^https?:\/\//i.test(input)) return input; if (/^localhost(?::\d+)?(?:\/|$)/i.test(input) || /^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:\/|$)/.test(input)) return `http://${input}`; if (/^[^\s]+\.[^\s]+/.test(input)) return `https://${input}`; return `https://www.google.com/search?q=${encodeURIComponent(input)}`; }
+function isTransientMicrosoftAuthenticationUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return ['login.microsoft.com', 'login.microsoftonline.com'].includes(url.hostname.toLowerCase())
+      && (/\/bridge\/fido\/?$/i.test(url.pathname) || /\/fido\//i.test(url.pathname));
+  } catch { return false; }
+}
 function openUrlInCurrentTab(value, message = 'Opening website') {
   const item = currentProject();
   const url = normalizeAddress(String(value || ''));
@@ -2918,7 +2925,15 @@ if (isElectron) {
     else if (command === 'new-tab') addTab();
     else if (command === 'close-tab' && activeTabId) closeTab(activeTabId);
   });
-  window.atlasBrowser.onNavigated((url) => { const tab = currentTab(); if (!tab) return; tab.url = url; lastDesktopUrl = url; $('address').value = url; save(); });
+  window.atlasBrowser.onNavigated((url) => {
+    const tab = currentTab();
+    if (!tab) return;
+    lastDesktopUrl = url;
+    $('address').value = url;
+    if (isTransientMicrosoftAuthenticationUrl(url)) return;
+    tab.url = url;
+    save();
+  });
   window.atlasBrowser.onTitle((title) => { const tab = currentTab(); if (!tab || !title) return; tab.title = title; save(); renderTabs(currentProject()); });
   window.atlasBrowser.onFavicon((favicon) => {
     const tab = currentTab();
