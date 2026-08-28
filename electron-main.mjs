@@ -29,6 +29,7 @@ const pendingAgentTools = new Map();
 const localTts = new LocalTtsService();
 const appIconPath = fileURLToPath(new URL('./public/assets/atlas-mark.png', import.meta.url));
 const secretsPath = () => path.join(app.getPath('userData'), 'agent-secrets.json');
+const websitePopupProtocols = new Set(['http:', 'https:', 'about:']);
 
 nativeTheme.themeSource = 'dark';
 app.setPath('userData', process.env.ATLAS_USER_DATA_DIR || path.join(app.getPath('appData'), 'atlas-browser'));
@@ -62,6 +63,49 @@ function openExternalUrl(url) {
 
 function flushExternalUrls() {
   while (pendingExternalUrls.length) openExternalUrl(pendingExternalUrls.shift());
+}
+
+function isAllowedWebsitePopupUrl(value) {
+  try { return websitePopupProtocols.has(new URL(String(value)).protocol); }
+  catch { return false; }
+}
+
+function websitePopupOptions() {
+  return {
+    parent: browserWindow,
+    width: 560,
+    height: 760,
+    minWidth: 420,
+    minHeight: 540,
+    show: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#15131c',
+    title: 'ATLAS Secure Sign-In',
+    icon: appIconPath,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      partition: 'persist:atlas-browser',
+      backgroundThrottling: false
+    }
+  };
+}
+
+function websiteWindowOpenHandler({ url }) {
+  if (!isAllowedWebsitePopupUrl(url)) return { action: 'deny' };
+  return { action: 'allow', overrideBrowserWindowOptions: websitePopupOptions() };
+}
+
+function configureWebsitePopup(popupWindow) {
+  popupWindow.setAutoHideMenuBar(true);
+  popupWindow.setMenuBarVisibility(false);
+  popupWindow.webContents.setWindowOpenHandler(websiteWindowOpenHandler);
+  popupWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedWebsitePopupUrl(url)) event.preventDefault();
+  });
+  popupWindow.show();
+  popupWindow.focus();
 }
 
 function buildApplicationMenu() {
@@ -162,10 +206,8 @@ async function createWindow() {
     openPath: (downloadPath) => shell.openPath(downloadPath)
   });
   downloadManager.attach(siteView.webContents.session);
-  siteView.webContents.setWindowOpenHandler(({ url }) => {
-    siteView.webContents.loadURL(url);
-    return { action: 'deny' };
-  });
+  siteView.webContents.setWindowOpenHandler(websiteWindowOpenHandler);
+  siteView.webContents.on('did-create-window', configureWebsitePopup);
   siteView.webContents.on('did-navigate', (_event, url) => browserWindow.webContents.send('atlas:navigated', url));
   siteView.webContents.on('did-navigate-in-page', (_event, url) => browserWindow.webContents.send('atlas:navigated', url));
   siteView.webContents.on('page-title-updated', (_event, title) => browserWindow.webContents.send('atlas:title', title));
