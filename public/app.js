@@ -1777,10 +1777,42 @@ async function executeAtlasAgentTool(request) {
     if (session.scopeProjectId && project.id !== session.scopeProjectId) throw new Error(`Session is restricted to ${sessionScopeName(session)}.`);
     return project;
   };
+  const requireActiveBrowserTab = async () => {
+    const project = requireProject();
+    const tab = project.tabs.find((entry) => entry.id === args.tabId);
+    if (!tab) throw new Error('Browser tab not found.');
+    if (activeProjectId !== project.id || activeTabId !== tab.id) throw new Error('That browser tab is not active. Navigate or open it before controlling the page.');
+    if (!tab.url) throw new Error('The active browser tab is blank.');
+    if (activeView !== 'browser') {
+      activeView = 'browser'; save(); render();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    return { project, tab };
+  };
   if (request.tool === 'atlas_get_context') return agentContextSnapshot(session);
   if (request.tool === 'atlas_read_current_page') {
     if (session.scopeProjectId && activeProjectId !== session.scopeProjectId) throw new Error(`The visible page is outside the session scope. Open a tab in ${sessionScopeName(session)} first.`);
-    return window.atlasBrowser.readCurrentPage();
+    return window.atlasBrowser.readCurrentPage(args.maxChars);
+  }
+  if (request.tool === 'atlas_browser_inspect') {
+    const { project, tab } = await requireActiveBrowserTab();
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.inspectPage({ maxElements: args.maxElements })) };
+  }
+  if (request.tool === 'atlas_browser_click') {
+    const { project, tab } = await requireActiveBrowserTab();
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.clickPage({ ref: args.ref, doubleClick: args.doubleClick })) };
+  }
+  if (request.tool === 'atlas_browser_type') {
+    const { project, tab } = await requireActiveBrowserTab();
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.typePage({ ref: args.ref, text: args.text, replace: args.replace !== false })) };
+  }
+  if (request.tool === 'atlas_browser_press_key') {
+    const { project, tab } = await requireActiveBrowserTab();
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.pressPageKey({ ref: args.ref, key: args.key, modifiers: args.modifiers })) };
+  }
+  if (request.tool === 'atlas_browser_scroll') {
+    const { project, tab } = await requireActiveBrowserTab();
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.scrollPage({ deltaX: args.deltaX, deltaY: args.deltaY })) };
   }
   if (request.tool === 'atlas_open_tab') {
     const project = requireProject();

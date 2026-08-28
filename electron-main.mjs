@@ -10,6 +10,7 @@ import { transcribeLocalAudio } from './local-voice.mjs';
 import { extractPdfText } from './library-reader.mjs';
 import { LocalTtsService, kokoroVoices } from './local-tts.mjs';
 import { PrivacyShield } from './privacy-shield.mjs';
+import { BrowserController } from './browser-control.mjs';
 
 let localServer;
 let browserWindow;
@@ -19,6 +20,7 @@ let agentServer;
 let agentStatus = { state: 'starting', message: 'Connecting to agent provider…' };
 let activeProviderConfig = { id: 'codex', secretId: 'default:codex' };
 let privacyShield;
+let browserController;
 let rendererReady = false;
 const pendingExternalUrls = [];
 const pendingAgentTools = new Map();
@@ -151,6 +153,7 @@ async function createWindow() {
   siteView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   privacyShield = new PrivacyShield({ onStatus: (status) => browserWindow?.webContents.send('atlas:privacy-status', status) });
   privacyShield.attach(siteView.webContents.session, siteView.webContents);
+  browserController = new BrowserController(() => siteView?.webContents, () => browserWindow);
   siteView.webContents.setWindowOpenHandler(({ url }) => {
     siteView.webContents.loadURL(url);
     return { action: 'deny' };
@@ -295,6 +298,11 @@ ipcMain.handle('atlas:agent-read-thread', (_event, threadId) => agentServer.read
 ipcMain.handle('atlas:agent-compact-thread', (_event, threadId) => agentServer.compactThread(threadId));
 ipcMain.handle('atlas:agent-delete-thread', (_event, threadId) => agentServer.deleteThread(threadId));
 ipcMain.handle('atlas:read-current-page', (_event, maxChars) => readCurrentPage(maxChars));
+ipcMain.handle('atlas:browser-inspect', (_event, options) => browserController.inspect(options));
+ipcMain.handle('atlas:browser-click', (_event, options) => browserController.click(options));
+ipcMain.handle('atlas:browser-type', (_event, options) => browserController.type(options));
+ipcMain.handle('atlas:browser-press-key', (_event, options) => browserController.pressKey(options));
+ipcMain.handle('atlas:browser-scroll', (_event, options) => browserController.scroll(options));
 ipcMain.handle('atlas:privacy-status', () => privacyShield?.status() || { mode: 'balanced', blockedRequests: 0, cleanedLinks: 0 });
 ipcMain.handle('atlas:privacy-mode', (_event, mode) => {
   const result = privacyShield?.setMode(mode) || { mode: 'balanced', blockedRequests: 0, cleanedLinks: 0, changed: false };

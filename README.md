@@ -58,6 +58,7 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 - Global bookmarks that automatically appear in existing and future projects
 - Right-click **Send to Library** for highlighted webpage text
 - Modern-site compatibility handling, including a browser-compatible user agent
+- Agent-driven inspection, native clicking, text entry, key input, and scrolling in the active website tab
 - Per-profile Privacy Shield with Off, Balanced, and Strict modes
 - One-click clearing of website cookies, cache, and stored site data
 
@@ -275,6 +276,7 @@ ATLAS-Browser/
 ├── preload.cjs             # Context-isolated renderer API
 ├── agent-providers.mjs     # Provider catalog and portable adapter implementations
 ├── codex-agent.mjs         # Native Codex App Server integration and ATLAS tools
+├── browser-control.mjs     # Inspected-element refs and native website input controls
 ├── local-voice.mjs         # Local Whisper transcription
 ├── local-tts.mjs           # Kokoro worker lifecycle and voice catalog
 ├── privacy-shield.mjs      # Website tracking protection and data clearing
@@ -297,6 +299,9 @@ The current tool bridge allows an agent to:
 - Read the permitted ATLAS project context
 - Read the visible text, URL, and title of the current page
 - Open a new project tab or navigate an existing tab
+- Inspect visible interactive page elements and receive short-lived element references
+- Click inspected elements using native Chromium mouse input
+- Type into inspected fields, choose select options, press common keys, and scroll the page
 - Create, edit, complete, or delete tasks
 - Save the current page or add a URL to the library
 - Read text, PDF, and image library resources
@@ -304,6 +309,10 @@ The current tool bridge allows an agent to:
 - Create, update, or delete project notes
 
 Website text and saved content are treated as untrusted data. The host validates project scope for every tool request, and destructive tools are instructed to run only after an explicit user request.
+
+Browser interaction tools are included in the shared `atlasDynamicTools` catalog, so they are exposed to Codex App Server, structured CLI adapters, and OpenAI-compatible function-tool providers. Every interaction requires the active project and tab identifiers. Element references expire when the agent inspects again and should be refreshed after navigation or a major page update. ATLAS does not expose an arbitrary JavaScript-evaluation tool to providers.
+
+The inspector currently targets the top-level website document. It reports the number of embedded iframes, but elements inside cross-origin frames may not be directly controllable until frame-aware inspection is added.
 
 ## Privacy Shield
 
