@@ -9,6 +9,7 @@ import { AgentProviderManager, providerTemplates } from './agent-providers.mjs';
 import { transcribeLocalAudio } from './local-voice.mjs';
 import { extractPdfText } from './library-reader.mjs';
 import { LocalTtsService, kokoroVoices } from './local-tts.mjs';
+import { PrivacyShield } from './privacy-shield.mjs';
 
 let localServer;
 let browserWindow;
@@ -17,6 +18,7 @@ let applicationMenu;
 let agentServer;
 let agentStatus = { state: 'starting', message: 'Connecting to agent provider…' };
 let activeProviderConfig = { id: 'codex', secretId: 'default:codex' };
+let privacyShield;
 let rendererReady = false;
 const pendingExternalUrls = [];
 const pendingAgentTools = new Map();
@@ -147,8 +149,8 @@ async function createWindow() {
   siteView = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: 'persist:atlas-browser', backgroundThrottling: false } });
   browserWindow.contentView.addChildView(siteView);
   siteView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-  const compatibleUserAgent = siteView.webContents.getUserAgent().replace(/\sElectron\/\S+/i, '').replace(/\sATLAS\/\S+/i, '');
-  siteView.webContents.setUserAgent(compatibleUserAgent);
+  privacyShield = new PrivacyShield({ onStatus: (status) => browserWindow?.webContents.send('atlas:privacy-status', status) });
+  privacyShield.attach(siteView.webContents.session, siteView.webContents);
   siteView.webContents.setWindowOpenHandler(({ url }) => {
     siteView.webContents.loadURL(url);
     return { action: 'deny' };
@@ -293,6 +295,18 @@ ipcMain.handle('atlas:agent-read-thread', (_event, threadId) => agentServer.read
 ipcMain.handle('atlas:agent-compact-thread', (_event, threadId) => agentServer.compactThread(threadId));
 ipcMain.handle('atlas:agent-delete-thread', (_event, threadId) => agentServer.deleteThread(threadId));
 ipcMain.handle('atlas:read-current-page', (_event, maxChars) => readCurrentPage(maxChars));
+ipcMain.handle('atlas:privacy-status', () => privacyShield?.status() || { mode: 'balanced', blockedRequests: 0, cleanedLinks: 0 });
+ipcMain.handle('atlas:privacy-mode', (_event, mode) => {
+  const result = privacyShield?.setMode(mode) || { mode: 'balanced', blockedRequests: 0, cleanedLinks: 0, changed: false };
+  if (result.changed && siteView?.webContents.getURL()) siteView.webContents.reload();
+  return result;
+});
+ipcMain.handle('atlas:clear-website-data', async () => {
+  if (!privacyShield) throw new Error('Privacy shield is not ready.');
+  const result = await privacyShield.clearWebsiteData();
+  if (siteView?.webContents.getURL()) siteView.webContents.reload();
+  return result;
+});
 ipcMain.handle('atlas:transcribe-audio', (_event, payload) => transcribeLocalAudio(payload));
 ipcMain.handle('atlas:extract-pdf-text', (_event, bytes) => extractPdfText(bytes));
 ipcMain.handle('atlas:tts-voices', () => kokoroVoices);

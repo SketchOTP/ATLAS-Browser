@@ -58,6 +58,8 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 - Global bookmarks that automatically appear in existing and future projects
 - Right-click **Send to Library** for highlighted webpage text
 - Modern-site compatibility handling, including a browser-compatible user agent
+- Per-profile Privacy Shield with Off, Balanced, and Strict modes
+- One-click clearing of website cookies, cache, and stored site data
 
 ### Project library
 
@@ -251,6 +253,8 @@ flowchart LR
 flowchart TB
     UI[ATLAS renderer\nHTML, CSS, JavaScript] <-- IPC --> Main[Electron main process]
     Main --> Site[Sandboxed WebContentsView\nwebsite browsing]
+    Main --> Privacy[Privacy Shield\nrequest filtering and permission controls]
+    Privacy --> Site
     Main --> Provider[AgentProviderManager]
     Provider --> Codex[Codex App Server]
     Provider --> CLIs[Structured CLI adapters]
@@ -273,6 +277,7 @@ ATLAS-Browser/
 ├── codex-agent.mjs         # Native Codex App Server integration and ATLAS tools
 ├── local-voice.mjs         # Local Whisper transcription
 ├── local-tts.mjs           # Kokoro worker lifecycle and voice catalog
+├── privacy-shield.mjs      # Website tracking protection and data clearing
 ├── library-reader.mjs      # Local PDF extraction
 ├── server.mjs              # Local static UI server
 ├── public/
@@ -299,6 +304,20 @@ The current tool bridge allows an agent to:
 - Create, update, or delete project notes
 
 Website text and saved content are treated as untrusted data. The host validates project scope for every tool request, and destructive tools are instructed to run only after an explicit user request.
+
+## Privacy Shield
+
+Privacy Shield is configured per ATLAS profile under **Settings → Privacy shield**. New profiles use **Balanced** mode by default.
+
+| Mode | Behavior |
+| --- | --- |
+| **Off** | Uses the compatibility user agent without tracker blocking, tracking-parameter cleanup, or privacy request headers. Sandboxing and restrictive website permissions remain enabled. |
+| **Balanced** | Blocks common advertising and analytics hosts, removes common marketing parameters from top-level links, sends Do Not Track and Global Privacy Control signals, withholds high-entropy client hints, and declines sensitive website permissions. |
+| **Strict** | Adds known telemetry hosts, uses a generic reduced browser user agent, withholds browser-brand and platform hints, and normalizes language headers. This can trigger additional verification or break some sites. |
+
+The Privacy Shield card displays the number of tracker requests blocked and navigation links cleaned during the current app session. **Clear cookies and website data** clears ATLAS website cookies, cache, and site storage and signs the browser out of websites. It does not remove ATLAS profiles, projects, tabs, bookmarks, tasks, notes, conversations, or Library resources.
+
+Privacy Shield reduces routine tracking; it does not make a logged-in account anonymous. A website can still know the account you used, your public IP address, login time, cookies required for authentication, and signals inferred from the network, screen, fonts, graphics stack, or behavior. Strict mode does not attempt to falsify every JavaScript-visible property. Hiding an IP address requires a separate network privacy layer, and signing into a personal account still identifies that account.
 
 ## Privacy and data
 
@@ -381,6 +400,7 @@ When changing agent providers, test both a clean temporary profile and an existi
 <summary><strong>A website is blank or does not finish loading</strong></summary>
 
 - Reload the tab and confirm the machine has network access.
+- If Privacy Shield is set to Strict, temporarily use Balanced or Off for that site and reload it.
 - Review the terminal output for `SITE_LOAD_FAILED`, `SITE_RENDERER_GONE`, or `SITE_CONSOLE_*` diagnostics.
 - Some authentication flows block embedded or automated browser surfaces.
 - Keep Electron current; modern websites can depend on recent Chromium behavior.
@@ -414,7 +434,7 @@ ATLAS is under active development. The current source is a functional Linux-test
 Contributions and issue reports are welcome once the repository is public.
 
 1. Fork the repository.
-2. Create a focused branch from `master`.
+2. Create a focused branch from `main`.
 3. Make the change without adding personal profiles, secrets, generated models, or dependency folders.
 4. Run `npm run check`.
 5. Test with a clean `ATLAS_USER_DATA_DIR` and, when relevant, an existing profile.

@@ -1656,6 +1656,19 @@ body.resizing-agent-tray * { cursor: row-resize !important; }
 .provider-endpoint-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; padding: 12px; border: 1px solid #5e2570; border-radius: 15px; background: #16091b; }
 .agent-provider-settings textarea { width: 100%; resize: vertical; }
 .walkthrough-replay { margin-top: 10px; }
+.privacy-settings { position: relative; overflow: hidden; }
+.privacy-settings::before { position: absolute; top: -42px; right: -36px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(176, 38, 255, .18), transparent 68%); content: ""; pointer-events: none; }
+.privacy-mode-card { position: relative; margin: 10px 0; padding: 13px; border: 1px solid #4b2557; border-radius: 15px; background: #0c080e; }
+.privacy-mode-card::before { position: absolute; top: 14px; right: 14px; width: 9px; height: 9px; border-radius: 50%; background: #39ff88; box-shadow: 0 0 13px rgba(57, 255, 136, .8); content: ""; }
+.privacy-mode-card.off::before { background: #8d8292; box-shadow: none; }
+.privacy-mode-card.strict::before { background: #d84bff; box-shadow: 0 0 15px rgba(216, 75, 255, .9); }
+.privacy-mode-card strong { display: block; padding-right: 22px; color: #fff; font-size: 11px; }
+.privacy-mode-card p { margin: 6px 0 10px !important; color: #ad9fb3 !important; font-size: 10px !important; line-height: 1.55 !important; }
+.privacy-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.privacy-stats span { padding: 6px 8px; border: 1px solid #342039; border-radius: 999px; background: #160b19; color: #baadbf; font-size: 9px; }
+.privacy-stats b { color: #e268ff; }
+.privacy-limit { color: #998d9e !important; font-size: 9px !important; line-height: 1.55 !important; }
+.privacy-settings > .secondary-button { width: 100%; }
 
 .walkthrough-overlay { position: fixed; z-index: 5000; inset: 0; background: rgba(0, 0, 0, .72); }
 .walkthrough-highlight { position: fixed; z-index: 5001; border: 2px solid #d84bff; border-radius: 18px; box-shadow: 0 0 0 5px rgba(216, 75, 255, .15), 0 0 38px rgba(216, 75, 255, .72); pointer-events: none; transition: inset .22s ease, width .22s ease, height .22s ease; }

@@ -111,13 +111,14 @@ profileStore.profiles.forEach((profile) => {
   profile.email ||= 'local@atlas.invalid';
   profile.image ||= '';
   const existingWalkthroughState = profile.settings?.walkthroughCompleted;
-  profile.settings = { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', agentProvider: { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: 'medium', usageMode: 'native', secretId: `${profile.id}:codex` }, ...(profile.settings || {}) };
+  profile.settings = { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', agentProvider: { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: 'medium', usageMode: 'native', secretId: `${profile.id}:codex` }, ...(profile.settings || {}) };
   profile.settings.walkthroughCompleted = existingWalkthroughState === undefined ? !freshInstall : Boolean(existingWalkthroughState);
   profile.settings.agentProvider = { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: profile.settings.reasoningEffort || 'medium', usageMode: 'native', secretId: `${profile.id}:codex`, ...(profile.settings.agentProvider || {}) };
   profile.settings.defaultPageUrl = String(profile.settings.defaultPageUrl || '').trim();
   profile.settings.sidebarWidth = Math.min(460, Math.max(210, Number(profile.settings.sidebarWidth) || 268));
   profile.settings.agentTrayHeight = Math.min(420, Math.max(72, Number(profile.settings.agentTrayHeight) || 76));
   if (!['low', 'medium', 'high', 'xhigh'].includes(profile.settings.reasoningEffort)) profile.settings.reasoningEffort = 'medium';
+  if (!['off', 'balanced', 'strict'].includes(profile.settings.privacyMode)) profile.settings.privacyMode = 'balanced';
   profile.workspace = normalizeWorkspace(profile.workspace);
 });
 if (!profileStore.profiles.some((profile) => profile.id === profileStore.activeProfileId)) profileStore.activeProfileId = profileStore.profiles[0].id;
@@ -160,6 +161,7 @@ let projectPointerDrag = null;
 let suppressProjectClick = false;
 let agentRuntimeStatus = { state: 'starting', message: 'Connecting to agent provider…', providerId: activeProfile().settings.agentProvider.id };
 let agentUsage = null;
+let privacyStatus = { mode: activeProfile().settings.privacyMode, blockedRequests: 0, cleanedLinks: 0 };
 let providerTemplates = [];
 let walkthroughStep = -1;
 let walkthroughReplay = false;
@@ -514,6 +516,31 @@ async function refreshAgentUsage() {
     console.warn('Agent usage refresh failed', error);
     renderAgentUsage(null);
   }
+}
+
+const privacyModeDetails = {
+  off: { title: 'Protection off', copy: 'Uses the compatibility user agent and does not block tracker requests or remove tracking parameters.' },
+  balanced: { title: 'Balanced protection', copy: 'Blocks common advertising and analytics hosts, removes marketing parameters, sends Global Privacy Control, and suppresses high-entropy browser hints.' },
+  strict: { title: 'Strict protection', copy: 'Adds telemetry blocking and a generic reduced user agent while withholding browser-brand and platform hints. This can trigger extra verification or break some websites.' }
+};
+
+function renderPrivacyStatus(status = privacyStatus) {
+  privacyStatus = { ...privacyStatus, ...(status || {}) };
+  const mode = privacyStatus.mode || activeProfile().settings.privacyMode || 'balanced';
+  const detail = privacyModeDetails[mode] || privacyModeDetails.balanced;
+  if ($('privacy-mode')) $('privacy-mode').value = mode;
+  $('privacy-mode-title').textContent = detail.title;
+  $('privacy-mode-description').textContent = detail.copy;
+  $('privacy-blocked-count').textContent = String(privacyStatus.blockedRequests || 0);
+  $('privacy-cleaned-count').textContent = String(privacyStatus.cleanedLinks || 0);
+  $('privacy-mode-card').classList.toggle('off', mode === 'off');
+  $('privacy-mode-card').classList.toggle('strict', mode === 'strict');
+}
+
+async function configurePrivacyShield(mode = activeProfile().settings.privacyMode || 'balanced') {
+  if (!isElectron || !window.atlasBrowser.setPrivacyMode) return renderPrivacyStatus({ mode });
+  try { renderPrivacyStatus(await window.atlasBrowser.setPrivacyMode(mode)); }
+  catch (error) { toast(`Privacy shield unavailable: ${error.message}`); }
 }
 
 const activeAgentSession = () => state.agentSessions.find((session) => session.id === activeAgentSessionId);
@@ -922,6 +949,7 @@ function switchProfile(profileId) {
   closeProfileManager();
   render();
   configureActiveAgentProvider();
+  configurePrivacyShield(profile.settings.privacyMode);
   if (!profile.settings.walkthroughCompleted) setTimeout(() => startWalkthrough(false), 350);
   toast(`Switched to ${profile.name}`);
 }
@@ -951,7 +979,7 @@ function saveProfileEditor(event) {
     toast('Profile updated');
   } else {
     const id = `profile-${Date.now()}`;
-    const profile = { id, name, email, image, settings: { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', walkthroughCompleted: false, agentProvider: { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: 'medium', usageMode: 'native', secretId: `${id}:codex` } }, workspace: { projects: [], globalBookmarks: [], agentSessions: [], notifications: [] } };
+    const profile = { id, name, email, image, settings: { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', walkthroughCompleted: false, agentProvider: { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: 'medium', usageMode: 'native', secretId: `${id}:codex` } }, workspace: { projects: [], globalBookmarks: [], agentSessions: [], notifications: [] } };
     profileStore.profiles.push(profile);
     saveProfiles();
     switchProfile(profile.id);
@@ -1924,6 +1952,8 @@ async function configureActiveAgentProvider() {
 
 function openSettings() {
   $('default-page-url').value = activeProfile().settings.defaultPageUrl || '';
+  $('privacy-mode').value = activeProfile().settings.privacyMode || 'balanced';
+  renderPrivacyStatus({ ...privacyStatus, mode: $('privacy-mode').value });
   $('agent-provider').innerHTML = providerTemplates.map((provider) => `<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.name)}</option>`).join('');
   populateProviderForm(activeProfile().settings.agentProvider);
   $('agent-compaction-threshold').value = String(activeProfile().settings.compactionThreshold || 0.78);
@@ -1942,10 +1972,11 @@ async function saveSettings(event) {
   const configuredDefault = $('default-page-url').value.trim();
   const previousProviderId = activeProfile().settings.agentProvider.id;
   const agentProvider = providerConfigFromForm();
-  activeProfile().settings = { ...activeProfile().settings, defaultPageUrl: configuredDefault ? normalizeAddress(configuredDefault) : '', compactionThreshold: Number($('agent-compaction-threshold').value), reasoningEffort: agentProvider.effort, agentProvider, ttsVoice: $('tts-voice').value || 'af_heart', ttsSpeed: Number($('tts-speed').value) || 1, sttModel: $('stt-model').value, autoSpeak: $('auto-speak').checked, sidebarWidth: activeProfile().settings.sidebarWidth || 268, agentTrayHeight: activeProfile().settings.agentTrayHeight || 76 };
+  activeProfile().settings = { ...activeProfile().settings, defaultPageUrl: configuredDefault ? normalizeAddress(configuredDefault) : '', privacyMode: $('privacy-mode').value || 'balanced', compactionThreshold: Number($('agent-compaction-threshold').value), reasoningEffort: agentProvider.effort, agentProvider, ttsVoice: $('tts-voice').value || 'af_heart', ttsSpeed: Number($('tts-speed').value) || 1, sttModel: $('stt-model').value, autoSpeak: $('auto-speak').checked, sidebarWidth: activeProfile().settings.sidebarWidth || 268, agentTrayHeight: activeProfile().settings.agentTrayHeight || 76 };
   const secret = $('agent-provider-api-key').value;
   if (secret && isElectron) await window.atlasBrowser.saveAgentProviderSecret({ secretId: agentProvider.secretId, value: secret });
   saveProfiles();
+  await configurePrivacyShield(activeProfile().settings.privacyMode);
   await configureActiveAgentProvider();
   if (previousProviderId !== agentProvider.id) createAgentSession(activeView === 'agent' ? null : activeProjectId);
   closeSettings(); renderAgentWorkspace(); toast('Settings saved');
@@ -1964,7 +1995,7 @@ const walkthroughSteps = [
   { selector: '[data-view="notes"]', title: 'Notes', copy: 'Write formatted notes with classic editing controls, then edit or delete them whenever needed.' },
   { selector: '[data-view="agent"]', title: 'The ATLAS agent', copy: 'Choose a project scope in the full Agent view or use all projects. The bottom tray automatically stays scoped to the project you are viewing.' },
   { selector: '#voice-agent', title: 'Conversation mode', copy: 'Conversation mode listens with voice activity detection, acts on your request, answers aloud, and listens again.' },
-  { selector: '#settings-button', title: 'Settings and providers', copy: 'Configure Codex or another supported CLI, voice, reasoning effort, usage reporting, and replay this walkthrough at any time.' }
+  { selector: '#settings-button', title: 'Settings and providers', copy: 'Configure privacy protection, Codex or another supported CLI, voice, reasoning effort, usage reporting, and replay this walkthrough at any time.' }
 ];
 
 function positionWalkthrough() {
@@ -2366,6 +2397,26 @@ $('agent-usage-mode').addEventListener('change', () => {
   $('agent-usage-command-field').classList.toggle('hidden', $('agent-usage-mode').value !== 'command');
   $('agent-usage-manual-field').classList.toggle('hidden', $('agent-usage-mode').value !== 'manual');
 });
+$('privacy-mode').addEventListener('change', (event) => {
+  renderPrivacyStatus({ ...privacyStatus, mode: event.target.value });
+});
+$('clear-website-data').addEventListener('click', async () => {
+  if (!confirm('Clear all website cookies, cache, and stored site data? This will sign you out of websites in ATLAS, but it will not delete projects, tabs, bookmarks, notes, tasks, or Library resources.')) return;
+  const button = $('clear-website-data');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Clearing website data…';
+  try {
+    if (!isElectron || !window.atlasBrowser.clearWebsiteData) throw new Error('This control is available in the ATLAS desktop app.');
+    renderPrivacyStatus(await window.atlasBrowser.clearWebsiteData());
+    toast('Website cookies, cache, and stored data cleared');
+  } catch (error) {
+    toast(`Could not clear website data: ${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
 $('agent-provider-test').addEventListener('click', async () => {
   const status = $('agent-provider-status');
   status.className = '';
@@ -2593,6 +2644,7 @@ if (isElectron) {
     if (tab.iconMode === 'favicon') renderTabs(currentProject());
   });
   window.atlasBrowser.onSendSelectionToLibrary(saveWebSelectionToLibrary);
+  window.atlasBrowser.onPrivacyStatus(renderPrivacyStatus);
   window.atlasBrowser.onAgentEvent(handleAgentEvent);
   window.atlasBrowser.onAgentToolRequest(async (request) => {
     try { window.atlasBrowser.resolveAgentTool({ requestId: request.requestId, result: await executeAtlasAgentTool(request) }); }
@@ -2607,10 +2659,14 @@ applySidebarWidth(activeProfile().settings.sidebarWidth);
 applyAgentTrayHeight(activeProfile().settings.agentTrayHeight);
 render();
 if (isElectron) {
+  configurePrivacyShield(activeProfile().settings.privacyMode);
   window.atlasBrowser.getAgentProviderTemplates()
     .then((templates) => { providerTemplates = templates || []; return configureActiveAgentProvider(); })
     .catch((error) => { agentRuntimeStatus = { state: 'error', message: error.message }; renderAgentWorkspace(); });
-} else renderAgentUsage(null);
+} else {
+  renderAgentUsage(null);
+  renderPrivacyStatus({ mode: activeProfile().settings.privacyMode });
+}
 if (!activeProfile().settings.walkthroughCompleted) setTimeout(() => startWalkthrough(false), 450);
 checkDueTasks();
 setInterval(checkDueTasks, 30000);
