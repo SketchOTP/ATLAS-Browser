@@ -1,0 +1,19 @@
+{
+  "name": "atlas-browser",
+  "productName": "ATLAS Browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron-main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "serve": "node server.mjs",
+    "check": "node --check server.mjs && node --check electron-main.mjs && node --check preload.cjs && node --check codex-agent.mjs && node --check agent-providers.mjs && node --check public/app.js"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.2.108"
+  }
+}
