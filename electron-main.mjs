@@ -11,6 +11,7 @@ import { extractPdfText } from './library-reader.mjs';
 import { LocalTtsService, kokoroVoices } from './local-tts.mjs';
 import { PrivacyShield } from './privacy-shield.mjs';
 import { BrowserController } from './browser-control.mjs';
+import { DownloadManager } from './download-manager.mjs';
 
 let localServer;
 let browserWindow;
@@ -21,6 +22,7 @@ let agentStatus = { state: 'starting', message: 'Connecting to agent provider…
 let activeProviderConfig = { id: 'codex', secretId: 'default:codex' };
 let privacyShield;
 let browserController;
+let downloadManager;
 let rendererReady = false;
 const pendingExternalUrls = [];
 const pendingAgentTools = new Map();
@@ -154,6 +156,12 @@ async function createWindow() {
   privacyShield = new PrivacyShield({ onStatus: (status) => browserWindow?.webContents.send('atlas:privacy-status', status) });
   privacyShield.attach(siteView.webContents.session, siteView.webContents);
   browserController = new BrowserController(() => siteView?.webContents, () => browserWindow);
+  downloadManager = new DownloadManager({
+    downloadsPath: process.env.ATLAS_DOWNLOADS_DIR || app.getPath('downloads'),
+    onEvent: (download) => browserWindow?.webContents.send('atlas:download-event', download),
+    openPath: (downloadPath) => shell.openPath(downloadPath)
+  });
+  downloadManager.attach(siteView.webContents.session);
   siteView.webContents.setWindowOpenHandler(({ url }) => {
     siteView.webContents.loadURL(url);
     return { action: 'deny' };
@@ -303,6 +311,15 @@ ipcMain.handle('atlas:browser-click', (_event, options) => browserController.cli
 ipcMain.handle('atlas:browser-type', (_event, options) => browserController.type(options));
 ipcMain.handle('atlas:browser-press-key', (_event, options) => browserController.pressKey(options));
 ipcMain.handle('atlas:browser-scroll', (_event, options) => browserController.scroll(options));
+ipcMain.on('atlas:download-context', (_event, context) => downloadManager?.setContext(context));
+ipcMain.handle('atlas:download-read', (_event, { id, maxBytes } = {}) => {
+  if (!downloadManager) throw new Error('Download manager is not ready.');
+  return downloadManager.readFile(id, maxBytes);
+});
+ipcMain.handle('atlas:download-open', (_event, downloadPath) => {
+  if (!downloadManager) throw new Error('Download manager is not ready.');
+  return downloadManager.openSavedFile(downloadPath);
+});
 ipcMain.handle('atlas:privacy-status', () => privacyShield?.status() || { mode: 'balanced', blockedRequests: 0, cleanedLinks: 0 });
 ipcMain.handle('atlas:privacy-mode', (_event, mode) => {
   const result = privacyShield?.setMode(mode) || { mode: 'balanced', blockedRequests: 0, cleanedLinks: 0, changed: false };

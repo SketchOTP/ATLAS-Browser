@@ -56,6 +56,8 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 - Back, forward, reload, address/search input, and configurable new-tab page
 - Project bookmark bars with custom names and neon colors
 - Global bookmarks that automatically appear in existing and future projects
+- Project-scoped downloads with progress, completion history, and one-click file opening
+- Automatic import of completed downloads into the active project Library
 - Right-click **Send to Library** for highlighted webpage text
 - Modern-site compatibility handling, including a browser-compatible user agent
 - Agent-driven inspection, native clicking, text entry, key input, and scrolling in the active website tab
@@ -65,7 +67,7 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 ### Project library
 
 - Save the current page directly from the browser toolbar
-- Store titled URLs, editable text documents, PDFs, and images
+- Store titled URLs, editable text documents, PDFs, images, and downloaded files
 - Open saved URLs in new ATLAS tabs
 - View PDFs and images inside ATLAS
 - Keep binary resources in IndexedDB and project metadata in the local profile
@@ -136,6 +138,14 @@ The included launcher discovers a bundled Codex runtime when available and other
 chmod +x run-atlas-browser.sh
 ./run-atlas-browser.sh
 ```
+
+If an older Linux desktop shortcut reports that the launcher is not on `PATH`, refresh it so the command is run through Bash:
+
+```ini
+Exec=/usr/bin/env bash /absolute/path/to/ATLAS-Browser/run-atlas-browser.sh %U
+```
+
+ATLAS saves website downloads in the operating system Downloads folder. For isolated testing, that destination can be overridden with `ATLAS_DOWNLOADS_DIR=/absolute/path`.
 
 ### Web-only preview
 
@@ -357,6 +367,7 @@ The repository ignores virtual environments, dependencies, local logs, runtime o
 | --- | --- | --- |
 | `ATLAS_BROWSER_PORT` | Local shell server port | `48173` |
 | `ATLAS_CODEX_BIN` | Explicit path to the Codex executable | Auto-detected |
+| `ATLAS_DOWNLOADS_DIR` | Override the website download destination, useful for isolated testing | OS Downloads folder |
 | `ATLAS_PYTHON` | Python executable used for Whisper and Kokoro | `.venv/bin/python3` or system Python |
 | `ATLAS_USER_DATA_DIR` | Override Electron profile directory, useful for testing | OS app-data directory |
 
@@ -367,6 +378,7 @@ Install dependencies and run the syntax suite:
 ```bash
 npm install
 npm run check
+npm test
 ```
 
 Start the Electron application:

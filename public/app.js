@@ -34,6 +34,7 @@ function normalizeWorkspace(workspace) {
     project.tabs ||= [];
     project.bookmarks ||= [];
     project.resources ||= [];
+    project.downloads ||= [];
     project.notes ||= [];
     project.tasks ||= [];
     project.agentMessages ||= [];
@@ -55,6 +56,15 @@ function normalizeWorkspace(workspace) {
         if (resource.type === 'text') resource.text = resource.text || resource.meta || '';
       }
       resource.createdAt ||= new Date().toISOString();
+    });
+    project.downloads.forEach((download) => {
+      download.id ||= `download-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      download.fileName ||= 'Downloaded file';
+      download.state ||= 'completed';
+      download.createdAt ||= new Date().toISOString();
+      download.receivedBytes = Math.max(0, Number(download.receivedBytes) || 0);
+      download.totalBytes = Math.max(0, Number(download.totalBytes) || 0);
+      download.percent = Math.min(100, Math.max(0, Number(download.percent) || (download.state === 'completed' ? 100 : 0)));
     });
     project.notes.forEach((note) => {
       note.id ||= `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -453,7 +463,55 @@ function resourcePresentation(resource) {
   if (resource.type === 'url') return { mark: '🔗', meta: resource.url || 'Saved website' };
   if (resource.type === 'pdf') return { mark: 'PDF', meta: resource.fileName || 'PDF file' };
   if (resource.type === 'image') return { mark: 'IMG', meta: resource.fileName || 'Picture' };
+  if (resource.type === 'file') return { mark: 'FILE', meta: resource.fileName || 'Downloaded file' };
   return { mark: 'TXT', meta: 'Editable text document' };
+}
+
+function downloadedResourceType(download) {
+  const mimeType = String(download.mimeType || '').toLowerCase();
+  const extension = String(download.fileName || '').toLowerCase().match(/\.([^.]+)$/)?.[1] || '';
+  if (mimeType === 'application/pdf' || extension === 'pdf') return 'pdf';
+  if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(extension)) return 'image';
+  if (mimeType.startsWith('text/') || ['txt', 'md', 'markdown', 'csv', 'json', 'xml', 'yaml', 'yml', 'html', 'htm', 'css', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'sh', 'log'].includes(extension)) return 'text';
+  return 'file';
+}
+
+async function importCompletedDownload(profile, project, download) {
+  if (download.libraryResourceId || project.resources.some((resource) => resource.downloadId === download.id)) return;
+  let type = downloadedResourceType(download);
+  const resource = {
+    id: `resource-download-${download.id}`,
+    type,
+    title: download.fileName,
+    fileName: download.fileName,
+    mimeType: download.mimeType || 'application/octet-stream',
+    downloadId: download.id,
+    downloadPath: download.savePath,
+    sourceUrl: download.url,
+    size: download.totalBytes || download.receivedBytes || 0,
+    createdAt: download.completedAt || new Date().toISOString()
+  };
+  try {
+    const sizeLimit = type === 'pdf' ? 50 * 1024 * 1024 : type === 'image' ? 25 * 1024 * 1024 : type === 'text' ? 5 * 1024 * 1024 : 0;
+    if (sizeLimit && resource.size <= sizeLimit) {
+      const payload = await window.atlasBrowser.readDownloadedFile({ id: download.id, maxBytes: sizeLimit });
+      const bytes = payload.bytes instanceof Uint8Array ? payload.bytes : new Uint8Array(payload.bytes);
+      if (type === 'text') resource.text = new TextDecoder().decode(bytes);
+      else {
+        resource.blobKey = `${profile.id}:${resource.id}`;
+        await putResourceBlob(resource.blobKey, new Blob([bytes], { type: resource.mimeType }));
+      }
+    } else if (type !== 'file') {
+      type = 'file';
+      resource.type = 'file';
+    }
+  } catch {
+    resource.type = 'file';
+    delete resource.blobKey;
+  }
+  project.resources.unshift(resource);
+  download.libraryResourceId = resource.id;
+  saveProfiles();
 }
 
 async function hydrateLibraryPreviews() {
@@ -478,6 +536,88 @@ function renderNotificationBadge() {
   $('notification-badge').textContent = unread > 99 ? '99+' : String(unread);
   $('notification-badge').classList.toggle('hidden', unread === 0);
   $('notification-button').classList.toggle('has-unread', unread > 0);
+}
+
+function formatDownloadSize(bytes) {
+  const value = Math.max(0, Number(bytes) || 0);
+  if (!value) return 'Size unknown';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(value < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(value / 1024 / 1024).toFixed(value < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+function renderDownloads() {
+  const project = currentProject();
+  const downloads = project?.downloads || [];
+  $('download-project-label').textContent = project?.name || 'No project selected';
+  $('download-badge').textContent = downloads.length > 99 ? '99+' : String(downloads.length);
+  $('download-badge').classList.toggle('hidden', downloads.length === 0);
+  $('download-button').classList.toggle('has-unread', downloads.length > 0);
+  $('download-list').innerHTML = downloads.length ? downloads.map((download) => {
+    const state = ['completed', 'cancelled', 'interrupted'].includes(download.state) ? download.state : 'progressing';
+    const status = state === 'completed' ? `Finished · ${formatDownloadSize(download.totalBytes || download.receivedBytes)}` : state === 'progressing' ? `${Math.round(download.percent || 0)}% · ${formatDownloadSize(download.totalBytes)}` : state === 'cancelled' ? 'Download cancelled' : 'Download interrupted';
+    const extension = String(download.fileName || '').match(/\.([^.]+)$/)?.[1]?.slice(0, 4).toUpperCase() || 'FILE';
+    const dismiss = state === 'progressing' ? '<span></span>' : `<button class="download-dismiss" type="button" data-download-dismiss="${download.id}" title="Remove from this list" aria-label="Remove ${escapeHtml(download.fileName)} from downloads list">×</button>`;
+    return `<article class="download-row ${state}" style="--download-progress:${Math.round(download.percent || 0)}%"><button class="download-file-button" type="button" data-download-open="${download.id}" ${state === 'completed' ? '' : 'disabled'} title="${state === 'completed' ? 'Open downloaded file' : status}"><span class="download-file-icon">${escapeHtml(extension)}</span><span class="download-copy"><strong>${escapeHtml(download.fileName)}</strong><small>${escapeHtml(status)}</small>${state === 'progressing' ? '<span class="download-progress"><i></i></span>' : ''}</span></button>${dismiss}</article>`;
+  }).join('') : '<div class="empty-notifications">No downloads for this project.</div>';
+}
+
+function openDownloads() {
+  closeNotifications();
+  renderDownloads();
+  $('download-popover').classList.remove('hidden');
+  requestAnimationFrame(syncDesktopBounds);
+}
+
+function closeDownloads() {
+  $('download-popover').classList.add('hidden');
+  requestAnimationFrame(syncDesktopBounds);
+}
+
+function dismissDownload(downloadId) {
+  const project = currentProject();
+  if (!project) return;
+  project.downloads = project.downloads.filter((download) => download.id !== downloadId);
+  save();
+  renderDownloads();
+  toast('Download removed from this list; the file and Library resource were kept');
+}
+
+async function openDownloadedFile(downloadId) {
+  const download = currentProject()?.downloads.find((entry) => entry.id === downloadId);
+  if (!download?.savePath || download.state !== 'completed') return;
+  try { await window.atlasBrowser.openDownloadedFile(download.savePath); }
+  catch (error) { toast(error.message || 'The downloaded file could not be opened'); }
+}
+
+async function handleDownloadEvent(payload) {
+  const profile = profileStore.profiles.find((entry) => entry.id === payload?.profileId);
+  const project = profile?.workspace?.projects?.find((entry) => entry.id === payload?.projectId);
+  if (!profile || !project) return;
+  project.downloads ||= [];
+  let download = project.downloads.find((entry) => entry.id === payload.id);
+  if (!download) {
+    download = { id: payload.id };
+    project.downloads.unshift(download);
+  }
+  const { event: downloadEvent, ...downloadState } = payload;
+  Object.assign(download, downloadState);
+  if (downloadEvent === 'started' || downloadEvent === 'done') saveProfiles();
+  const isCurrentProject = profile.id === activeProfile().id && project.id === activeProjectId;
+  if (isCurrentProject) renderDownloads();
+  if (downloadEvent !== 'done') return;
+  if (download.state === 'completed') {
+    await importCompletedDownload(profile, project, download);
+    if (isCurrentProject) {
+      render();
+      openDownloads();
+      toast(`${download.fileName} downloaded and added to ${project.name} Library`);
+    }
+  } else if (isCurrentProject) {
+    openDownloads();
+    toast(`${download.fileName} did not finish downloading`);
+  }
+  saveProfiles();
 }
 
 function primaryCodexLimit(payload) {
@@ -632,6 +772,7 @@ function renderConversationModeUI() {
 
 function render() {
   const item = currentProject();
+  if (isElectron) window.atlasBrowser.setDownloadContext({ profileId: activeProfile().id, projectId: item?.id || '', tabId: currentTab()?.id || '' });
   renderProfileHeader();
   renderProjects();
   document.querySelector('.workspace').classList.toggle('browser-workspace', activeView === 'browser');
@@ -642,6 +783,7 @@ function render() {
     ['tab-count', 'task-count', 'resource-count', 'note-count'].forEach((id) => { $(id).textContent = ''; });
     updateWebsiteSurface(null);
     renderAgentWorkspace();
+    renderDownloads();
     if (isElectron) requestAnimationFrame(syncDesktopBounds);
     return;
   }
@@ -670,13 +812,14 @@ function render() {
   document.querySelectorAll('[data-note-id]').forEach((node) => node.addEventListener('click', () => openNoteEditor(item.notes.find((note) => note.id === node.dataset.noteId))));
   hydrateLibraryPreviews();
   renderNotificationBadge();
+  renderDownloads();
   if (isElectron) requestAnimationFrame(syncDesktopBounds);
 }
 
 function syncDesktopBounds() {
   if (!isElectron) return;
   const rect = document.querySelector('.browser-canvas').getBoundingClientRect();
-  const overlayOpen = ['project-modal', 'profile-modal', 'resource-modal', 'resource-viewer-modal', 'task-modal', 'note-modal', 'settings-modal', 'bookmark-modal', 'bookmark-manager', 'emoji-picker', 'notification-popover', 'walkthrough-overlay'].some((id) => !$(id).classList.contains('hidden'));
+  const overlayOpen = ['project-modal', 'profile-modal', 'resource-modal', 'resource-viewer-modal', 'task-modal', 'note-modal', 'settings-modal', 'bookmark-modal', 'bookmark-manager', 'emoji-picker', 'download-popover', 'notification-popover', 'walkthrough-overlay'].some((id) => !$(id).classList.contains('hidden'));
   const trayHeight = !$('agent-tray').classList.contains('hidden') ? Math.ceil($('agent-tray').getBoundingClientRect().height + 18) : 0;
   window.atlasBrowser.setBounds({ x: rect.left, y: rect.top, width: rect.width, height: Math.max(0, rect.height - trayHeight), visible: activeView === 'browser' && Boolean(currentTab()?.url) && !overlayOpen });
 }
@@ -1132,6 +1275,11 @@ async function openResource(resource) {
   if (!resource) return;
   if (resource.type === 'url') return openResourceUrl(resource);
   if (resource.type === 'text') return openResourceEditor(resource);
+  if (resource.type === 'file' && resource.downloadPath && isElectron) {
+    try { await window.atlasBrowser.openDownloadedFile(resource.downloadPath); }
+    catch (error) { toast(error.message || 'The downloaded file could not be opened'); }
+    return;
+  }
   if (!resource.blobKey) return toast('This file is missing from local storage');
   try {
     const blob = await getResourceBlob(resource.blobKey);
@@ -1267,6 +1415,7 @@ function checkDueTasks() {
 }
 
 function openNotifications() {
+  closeDownloads();
   notificationSnapshot = (state.notifications || []).filter((notification) => !notification.read);
   $('notification-list').innerHTML = notificationSnapshot.length ? notificationSnapshot.map((notification) => `<button type="button" data-notification-id="${notification.id}"><span>✓</span><span><strong>${escapeHtml(notification.title)}</strong><small>${escapeHtml(notification.message)}</small></span></button>`).join('') : '<div class="empty-notifications">No unread notifications.</div>';
   notificationSnapshot.forEach((notification) => { notification.read = true; });
@@ -1358,7 +1507,7 @@ function saveProjectEditor(event) {
     if (image) item.image = image;
     toast('Project updated');
   } else {
-    const item = { id: `project-${Date.now()}`, name, image, iconMode: projectIconMode, emoji: editingProjectEmoji, color, status, description: 'A project workspace.', tabs: [], bookmarks: state.globalBookmarks.map((bookmark) => ({ ...bookmark, id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })), resources: [], notes: [], tasks: [] };
+    const item = { id: `project-${Date.now()}`, name, image, iconMode: projectIconMode, emoji: editingProjectEmoji, color, status, description: 'A project workspace.', tabs: [], bookmarks: state.globalBookmarks.map((bookmark) => ({ ...bookmark, id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })), resources: [], downloads: [], notes: [], tasks: [] };
     state.projects.unshift(item);
     activeProjectId = item.id;
     activeTabId = undefined;
@@ -2020,6 +2169,7 @@ const walkthroughSteps = [
   { selector: '.project-quick-menu', title: 'Project tools', copy: 'These buttons open Browser, Tasks, Agent, Library, and Notes for the selected project. Hover any icon to see its name.' },
   { selector: '.tabbar', title: 'Website tabs', copy: 'Tabs are real websites. Click a tab icon to choose from the searchable emoji library or switch back to the website favicon.' },
   { selector: '.browser-toolbar', title: 'Browse and save', copy: 'Enter a URL or search here. Save to project adds the current page to that project’s Library.' },
+  { selector: '#download-button', title: 'Project downloads', copy: 'Downloads are saved to disk and automatically added to the current project’s Library. This popup only shows that project’s download activity; dismissing an item never deletes the file or Library resource.' },
   { selector: '#bookmarks-bar', title: 'Project bookmarks', copy: 'Bookmarks change with each project. A bookmark can also be shared with every project, including projects created later.' },
   { selector: '.browser-canvas', title: 'Capture research while browsing', copy: 'Highlight text on a webpage and right-click Send to Library. ATLAS saves the selection with its URL and date.' },
   { selector: '[data-view="tasks"]', title: 'Tasks', copy: 'Create tasks with priorities and due dates. Due tasks notify you, and completed tasks stay in a three-day temporary archive.' },
@@ -2422,6 +2572,9 @@ $('note-link').addEventListener('mousedown', (event) => { event.preventDefault()
 $('notification-button').addEventListener('click', () => {
   if ($('notification-popover').classList.contains('hidden')) openNotifications(); else closeNotifications();
 });
+$('download-button').addEventListener('click', () => {
+  if ($('download-popover').classList.contains('hidden')) openDownloads(); else closeDownloads();
+});
 $('settings-button').addEventListener('click', openSettings);
 $('settings-form').addEventListener('submit', saveSettings);
 $('agent-provider').addEventListener('change', () => populateProviderForm(activeProviderTemplate($('agent-provider').value)));
@@ -2478,6 +2631,13 @@ $('cancel-settings').addEventListener('click', closeSettings);
 $('settings-modal').addEventListener('click', (event) => { if (event.target === $('settings-modal')) closeSettings(); });
 $('close-notifications').addEventListener('click', closeNotifications);
 $('notification-list').addEventListener('click', (event) => { const button = event.target.closest('[data-notification-id]'); if (button) openNotification(button.dataset.notificationId); });
+$('close-downloads').addEventListener('click', closeDownloads);
+$('download-list').addEventListener('click', (event) => {
+  const dismissButton = event.target.closest('[data-download-dismiss]');
+  const openButton = event.target.closest('[data-download-open]');
+  if (dismissButton) dismissDownload(dismissButton.dataset.downloadDismiss);
+  else if (openButton) openDownloadedFile(openButton.dataset.downloadOpen);
+});
 $('profile-button').addEventListener('click', openProfileManager);
 $('close-profile-modal').addEventListener('click', closeProfileManager);
 $('cancel-profile').addEventListener('click', closeProfileManager);
@@ -2637,6 +2797,10 @@ document.addEventListener('pointerdown', (event) => {
   if (!event.target.closest('#notification-popover') && !event.target.closest('#notification-button')) closeNotifications();
 });
 document.addEventListener('pointerdown', (event) => {
+  if ($('download-popover').classList.contains('hidden')) return;
+  if (!event.target.closest('#download-popover') && !event.target.closest('#download-button')) closeDownloads();
+});
+document.addEventListener('pointerdown', (event) => {
   if ($('bookmark-manager').classList.contains('hidden')) return;
   if (!event.target.closest('#bookmark-manager') && !event.target.closest('#manage-bookmarks')) closeBookmarkManager();
 });
@@ -2653,6 +2817,7 @@ document.addEventListener('keydown', (event) => {
   else if (!$('bookmark-modal').classList.contains('hidden')) closeBookmarkEditor();
   else if (!$('bookmark-manager').classList.contains('hidden')) closeBookmarkManager();
   else if (!$('settings-modal').classList.contains('hidden')) closeSettings();
+  else if (!$('download-popover').classList.contains('hidden')) closeDownloads();
   else if (!$('notification-popover').classList.contains('hidden')) closeNotifications();
 });
 
@@ -2676,6 +2841,7 @@ if (isElectron) {
     if (tab.iconMode === 'favicon') renderTabs(currentProject());
   });
   window.atlasBrowser.onSendSelectionToLibrary(saveWebSelectionToLibrary);
+  window.atlasBrowser.onDownloadEvent(handleDownloadEvent);
   window.atlasBrowser.onPrivacyStatus(renderPrivacyStatus);
   window.atlasBrowser.onAgentEvent(handleAgentEvent);
   window.atlasBrowser.onAgentToolRequest(async (request) => {

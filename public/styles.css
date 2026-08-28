@@ -752,6 +752,9 @@ body.resizing-sidebar * { cursor: col-resize !important; }
 .notification-popover { position: fixed; z-index: 130; top: 51px; right: 48px; width: 340px; padding: 12px; border: 1px solid #403a4c; border-radius: 16px; background: #211e29; box-shadow: 0 20px 55px rgba(0, 0, 0, .5); }
 .notification-head { display: flex; align-items: center; justify-content: space-between; padding: 1px 2px 10px 5px; }
 .notification-head strong { font-size: 11px; }
+.notification-head strong,
+.notification-head small { display: block; }
+.notification-head small { margin-top: 2px; color: var(--muted); font: 7px "DM Mono", monospace; }
 .notification-head button { width: 25px; height: 25px; padding: 0; border: 1px solid #403a4c; border-radius: 8px; background: #2a2633; color: var(--muted); }
 .notification-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
 .notification-list > button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 11px; border: 0; border-radius: 12px; background: #2b2734; color: var(--ink); text-align: left; }
@@ -762,6 +765,23 @@ body.resizing-sidebar * { cursor: col-resize !important; }
 .notification-list strong { font-size: 10px; }
 .notification-list small { margin-top: 3px; color: var(--muted); font-size: 8px; }
 .empty-notifications { padding: 22px 10px; color: var(--muted); font-size: 9px; text-align: center; }
+.download-popover { right: 88px; width: 370px; }
+.download-list { display: flex; flex-direction: column; gap: 7px; max-height: 390px; overflow-y: auto; }
+.download-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 26px; align-items: center; gap: 9px; padding: 9px; border: 1px solid #3a3144; border-radius: 13px; background: #2b2734; }
+.download-file-button { display: contents; color: inherit; text-align: left; }
+.download-file-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #351943; color: #e268ff; font: 7px "DM Mono", monospace; font-weight: 800; }
+.download-copy { min-width: 0; }
+.download-copy strong,
+.download-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.download-copy strong { color: var(--ink); font-size: 9px; }
+.download-copy small { margin-top: 3px; color: var(--muted); font-size: 7px; }
+.download-progress { height: 3px; margin-top: 7px; overflow: hidden; border-radius: 999px; background: #17131d; }
+.download-progress i { display: block; width: var(--download-progress, 0%); height: 100%; border-radius: inherit; background: #d84bff; box-shadow: 0 0 8px rgba(216, 75, 255, .7); transition: width .2s ease; }
+.download-dismiss { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #958b9e; font-size: 15px; }
+.download-dismiss:hover { background: #492532; color: #ff8fa1; }
+.download-row.completed .download-file-icon { background: #17372d; color: #57ffa4; }
+.download-row.interrupted .download-file-icon,
+.download-row.cancelled .download-file-icon { background: #46262e; color: #ff91a0; }
 
 .emoji-picker {
   position: fixed;
