@@ -2925,6 +2925,7 @@ if (isElectron) {
     else if (command === 'new-tab') addTab();
     else if (command === 'close-tab' && activeTabId) closeTab(activeTabId);
   });
+  window.atlasBrowser.onAuthCompatibility?.(() => toast('Microsoft passkey sign-in is unavailable here. Choose Sign-in options and use another verification method.'));
   window.atlasBrowser.onNavigated((url) => {
     const tab = currentTab();
     if (!tab) return;

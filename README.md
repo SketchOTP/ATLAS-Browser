@@ -55,7 +55,7 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 
 - Real websites rendered in an isolated Electron `WebContentsView`
 - Visible sandboxed website popups that preserve opener state and the shared website session for Microsoft and other OAuth sign-in flows
-- Microsoft sign-in compatibility on Linux and macOS that intercepts unsupported Windows FIDO-bridge requests at the network layer—including restored tabs—and safely returns them to Microsoft's own in-session sign-in options
+- Microsoft sign-in compatibility on Linux and macOS that recognizes unsupported platform-passkey pages and returns through browser history to Microsoft's valid method-selection screen without rewriting Microsoft authentication state
 - Transient Microsoft FIDO endpoints are never persisted as resumable ATLAS tab URLs, preventing a POST-only authentication step from becoming a broken restored GET after relaunch
 - Project-scoped website tabs with searchable emoji icons or automatic favicons
 - Back, forward, reload, address/search input, and configurable new-tab page

@@ -12,7 +12,7 @@ import { LocalTtsService, kokoroVoices } from './local-tts.mjs';
 import { PrivacyShield } from './privacy-shield.mjs';
 import { BrowserController } from './browser-control.mjs';
 import { DownloadManager } from './download-manager.mjs';
-import { microsoftFidoFallbackUrl } from './auth-compatibility.mjs';
+import { isUnsupportedMicrosoftFidoUrl } from './auth-compatibility.mjs';
 
 let localServer;
 let browserWindow;
@@ -25,6 +25,7 @@ let privacyShield;
 let browserController;
 let downloadManager;
 let rendererReady = false;
+let microsoftFidoRecoverySteps = 0;
 const pendingExternalUrls = [];
 const pendingAgentTools = new Map();
 const localTts = new LocalTtsService();
@@ -120,14 +121,18 @@ function configureWebsitePopup(popupWindow) {
   popupWindow.focus();
 }
 
-function handleUnsupportedAuthenticationBridge(event, legacyUrl) {
-  if (event?.isMainFrame === false) return;
-  const fallbackUrl = microsoftFidoFallbackUrl(event?.url || legacyUrl);
-  if (!fallbackUrl) return;
-  event.preventDefault();
-  setImmediate(() => {
-    if (siteView && !siteView.webContents.isDestroyed()) siteView.webContents.loadURL(fallbackUrl);
-  });
+function recoverUnsupportedMicrosoftFido(url) {
+  if (!isUnsupportedMicrosoftFidoUrl(url)) {
+    microsoftFidoRecoverySteps = 0;
+    return;
+  }
+  microsoftFidoRecoverySteps += 1;
+  if (microsoftFidoRecoverySteps === 1) sendToRenderer('atlas:auth-compatibility', { provider: 'Microsoft', action: 'choose-another-method' });
+  setTimeout(() => {
+    if (!siteView || siteView.webContents.isDestroyed() || !isUnsupportedMicrosoftFidoUrl(siteView.webContents.getURL())) return;
+    if (microsoftFidoRecoverySteps <= 3 && siteView.webContents.navigationHistory.canGoBack()) siteView.webContents.navigationHistory.goBack();
+    else siteView.webContents.loadURL('https://outlook.live.com/mail/');
+  }, 250);
 }
 
 function buildApplicationMenu() {
@@ -230,9 +235,10 @@ async function createWindow() {
   downloadManager.attach(siteView.webContents.session);
   siteView.webContents.setWindowOpenHandler(websiteWindowOpenHandler);
   siteView.webContents.on('did-create-window', configureWebsitePopup);
-  siteView.webContents.on('will-navigate', handleUnsupportedAuthenticationBridge);
-  siteView.webContents.on('will-redirect', handleUnsupportedAuthenticationBridge);
-  siteView.webContents.on('did-navigate', (_event, url) => sendToRenderer('atlas:navigated', url));
+  siteView.webContents.on('did-navigate', (_event, url) => {
+    sendToRenderer('atlas:navigated', url);
+    recoverUnsupportedMicrosoftFido(url);
+  });
   siteView.webContents.on('did-navigate-in-page', (_event, url) => sendToRenderer('atlas:navigated', url));
   siteView.webContents.on('page-title-updated', (_event, title) => sendToRenderer('atlas:title', title));
   siteView.webContents.on('page-favicon-updated', (_event, favicons) => sendToRenderer('atlas:favicon', favicons[0] || ''));

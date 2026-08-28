@@ -1,19 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { microsoftFidoFallbackUrl } from './auth-compatibility.mjs';
+import { isUnsupportedMicrosoftFidoUrl } from './auth-compatibility.mjs';
 
-const fallback = 'https://login.microsoftonline.com/common/reprocess?ctx=signed-flow-state';
-const bridge = `https://login.microsoft.com/common/bridge/fido?cancelUrl=${encodeURIComponent(fallback)}`;
+const bridge = 'https://login.microsoft.com/common/bridge/fido?cancelUrl=https%3A%2F%2Flogin.microsoftonline.com%2Fcommon%2Freprocess';
+const fidoPostTarget = 'https://login.microsoft.com/common/fido/get?uiflavor=Web';
 
-test('uses Microsoft fallback for the unsupported FIDO bridge on Linux', () => {
-  assert.equal(microsoftFidoFallbackUrl(bridge, 'linux'), fallback);
+test('detects Microsoft FIDO pages that cannot open platform UI on Linux', () => {
+  assert.equal(isUnsupportedMicrosoftFidoUrl(bridge, 'linux'), true);
+  assert.equal(isUnsupportedMicrosoftFidoUrl(fidoPostTarget, 'linux'), true);
 });
 
 test('leaves the native Windows FIDO bridge available on Windows', () => {
-  assert.equal(microsoftFidoFallbackUrl(bridge, 'win32'), '');
+  assert.equal(isUnsupportedMicrosoftFidoUrl(bridge, 'win32'), false);
 });
 
-test('rejects fallback URLs outside Microsoft login hosts', () => {
-  const untrusted = `https://login.microsoft.com/common/bridge/fido?cancelUrl=${encodeURIComponent('https://example.com/steal')}`;
-  assert.equal(microsoftFidoFallbackUrl(untrusted, 'linux'), '');
+test('does not classify lookalike hosts as Microsoft authentication', () => {
+  assert.equal(isUnsupportedMicrosoftFidoUrl('https://example.com/common/bridge/fido', 'linux'), false);
 });

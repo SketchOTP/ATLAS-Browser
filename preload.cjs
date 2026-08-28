@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('atlasBrowser', {
   onSiteHealth: (callback) => ipcRenderer.on('atlas:site-health', (_event, status) => callback(status)),
   onSendSelectionToLibrary: (callback) => ipcRenderer.on('atlas:send-selection-to-library', (_event, payload) => callback(payload)),
   onAppCommand: (callback) => ipcRenderer.on('atlas:app-command', (_event, command) => callback(command)),
+  onAuthCompatibility: (callback) => ipcRenderer.on('atlas:auth-compatibility', (_event, status) => callback(status)),
   getAgentStatus: () => ipcRenderer.invoke('atlas:agent-status'),
   getCodexRateLimits: () => ipcRenderer.invoke('atlas:codex-rate-limits'),
   getAgentUsage: () => ipcRenderer.invoke('atlas:agent-usage'),
