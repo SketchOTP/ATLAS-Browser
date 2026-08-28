@@ -12,6 +12,7 @@ import { LocalTtsService, kokoroVoices } from './local-tts.mjs';
 import { PrivacyShield } from './privacy-shield.mjs';
 import { BrowserController } from './browser-control.mjs';
 import { DownloadManager } from './download-manager.mjs';
+import { microsoftFidoFallbackUrl } from './auth-compatibility.mjs';
 
 let localServer;
 let browserWindow;
@@ -119,6 +120,16 @@ function configureWebsitePopup(popupWindow) {
   popupWindow.focus();
 }
 
+function handleUnsupportedAuthenticationBridge(event, legacyUrl) {
+  if (event?.isMainFrame === false) return;
+  const fallbackUrl = microsoftFidoFallbackUrl(event?.url || legacyUrl);
+  if (!fallbackUrl) return;
+  event.preventDefault();
+  setImmediate(() => {
+    if (siteView && !siteView.webContents.isDestroyed()) siteView.webContents.loadURL(fallbackUrl);
+  });
+}
+
 function buildApplicationMenu() {
   return Menu.buildFromTemplate([
     {
@@ -219,6 +230,8 @@ async function createWindow() {
   downloadManager.attach(siteView.webContents.session);
   siteView.webContents.setWindowOpenHandler(websiteWindowOpenHandler);
   siteView.webContents.on('did-create-window', configureWebsitePopup);
+  siteView.webContents.on('will-navigate', handleUnsupportedAuthenticationBridge);
+  siteView.webContents.on('will-redirect', handleUnsupportedAuthenticationBridge);
   siteView.webContents.on('did-navigate', (_event, url) => sendToRenderer('atlas:navigated', url));
   siteView.webContents.on('did-navigate-in-page', (_event, url) => sendToRenderer('atlas:navigated', url));
   siteView.webContents.on('page-title-updated', (_event, title) => sendToRenderer('atlas:title', title));

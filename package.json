@@ -9,7 +9,7 @@
     "start": "electron .",
     "serve": "node server.mjs",
     "check": "node --check server.mjs && node --check electron-main.mjs && node --check preload.cjs && node --check codex-agent.mjs && node --check agent-providers.mjs && node --check browser-control.mjs && node --check download-manager.mjs && node --check privacy-shield.mjs && node --check public/app.js",
-    "test": "node --test download-manager.test.mjs privacy-shield.test.mjs"
+    "test": "node --test auth-compatibility.test.mjs download-manager.test.mjs privacy-shield.test.mjs"
   },
   "devDependencies": {
     "electron": "^44.0.0"

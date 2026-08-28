@@ -55,6 +55,7 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 
 - Real websites rendered in an isolated Electron `WebContentsView`
 - Visible sandboxed website popups that preserve opener state and the shared website session for Microsoft and other OAuth sign-in flows
+- Microsoft sign-in compatibility on Linux and macOS that safely returns unsupported Windows FIDO-bridge requests to Microsoft's own in-session sign-in options
 - Project-scoped website tabs with searchable emoji icons or automatic favicons
 - Back, forward, reload, address/search input, and configurable new-tab page
 - Project bookmark bars with custom names and neon colors
