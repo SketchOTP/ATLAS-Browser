@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ATLAS Browser local and generated data
+node_modules/
+.gstack/
+work/
+dist/
+release/
+coverage/
+*.pid
+.env.*
+!.env.example
+agent-secrets.json
+atlas-browser/
+.DS_Store
+Thumbs.db
+Browser

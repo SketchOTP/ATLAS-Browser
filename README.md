@@ -428,7 +428,7 @@ Do not report credentials, private project data, or authentication tokens in a p
 
 ## License
 
-A license has not yet been selected. Add a `LICENSE` file before describing ATLAS as open source or accepting third-party contributions; without an explicit license, normal copyright restrictions apply.
+ATLAS Browser is released under the [MIT License](LICENSE). You may use, modify, distribute, and build on the project subject to the terms in that file.
 
 ---
 
