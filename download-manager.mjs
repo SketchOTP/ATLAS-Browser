@@ -29,6 +29,7 @@ export class DownloadManager {
     this.openPath = openPath;
     this.context = { profileId: '', projectId: '', tabId: '' };
     this.records = new Map();
+    this.libraryLinks = new Map();
     this.attachedSessions = new WeakSet();
   }
 
@@ -41,6 +42,19 @@ export class DownloadManager {
     return this.context;
   }
 
+  setLibraryLinks(links = []) {
+    this.libraryLinks.clear();
+    for (const link of Array.isArray(links) ? links : []) {
+      const profileId = String(link?.profileId || '');
+      const projectId = String(link?.projectId || '');
+      const resourceId = String(link?.resourceId || '');
+      const downloadPath = path.resolve(String(link?.downloadPath || ''));
+      if (!profileId || !projectId || !resourceId || !isInsideDirectory(this.downloadsPath, downloadPath)) continue;
+      this.libraryLinks.set(this.#libraryKey(profileId, projectId, resourceId), downloadPath);
+    }
+    return { linkedFiles: this.libraryLinks.size };
+  }
+
   attach(browserSession) {
     if (!browserSession || this.attachedSessions.has(browserSession)) return;
     this.attachedSessions.add(browserSession);
@@ -48,13 +62,22 @@ export class DownloadManager {
     browserSession.on('will-download', (_event, item) => this.#track(item));
   }
 
-  async readFile(id, maxBytes = 50 * 1024 * 1024) {
-    const record = this.records.get(String(id || ''));
-    if (!record || record.state !== 'completed') throw new Error('That completed download is no longer available to import.');
+  async readLibraryFile({ profileId, projectId, resourceId, maxBytes = 50 * 1024 * 1024 } = {}) {
+    const downloadPath = this.#libraryPath(profileId, projectId, resourceId);
     const limit = Math.min(100 * 1024 * 1024, Math.max(1, Number(maxBytes) || 1));
-    const stats = await fs.promises.stat(record.savePath);
-    if (stats.size > limit) throw new Error(`Downloaded file is too large to import automatically (${stats.size} bytes).`);
-    return { id: record.id, fileName: record.fileName, mimeType: record.mimeType, size: stats.size, bytes: await fs.promises.readFile(record.savePath) };
+    const stats = await fs.promises.stat(downloadPath);
+    if (stats.size > limit) throw new Error(`Linked Library file is too large to read (${stats.size} bytes).`);
+    return { fileName: path.basename(downloadPath), size: stats.size, bytes: await fs.promises.readFile(downloadPath) };
+  }
+
+  async libraryFileStatus({ profileId, projectId, resourceId } = {}) {
+    const downloadPath = this.#libraryPath(profileId, projectId, resourceId);
+    const stats = await fs.promises.stat(downloadPath);
+    return { available: true, fileName: path.basename(downloadPath), size: stats.size };
+  }
+
+  async openLibraryFile({ profileId, projectId, resourceId } = {}) {
+    return this.openSavedFile(this.#libraryPath(profileId, projectId, resourceId));
   }
 
   async openSavedFile(candidatePath) {
@@ -63,6 +86,17 @@ export class DownloadManager {
     const error = await this.openPath(path.resolve(candidatePath));
     if (error) throw new Error(error);
     return { opened: true };
+  }
+
+  #libraryKey(profileId, projectId, resourceId) {
+    return `${String(profileId || '')}\u0000${String(projectId || '')}\u0000${String(resourceId || '')}`;
+  }
+
+  #libraryPath(profileId, projectId, resourceId) {
+    const downloadPath = this.libraryLinks.get(this.#libraryKey(profileId, projectId, resourceId));
+    if (!downloadPath) throw new Error('That file is not authorized for this project Library.');
+    if (!fs.existsSync(downloadPath)) throw new Error('The linked Library file no longer exists in Downloads.');
+    return downloadPath;
   }
 
   #track(item) {

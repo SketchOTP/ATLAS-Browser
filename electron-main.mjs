@@ -312,9 +312,18 @@ ipcMain.handle('atlas:browser-type', (_event, options) => browserController.type
 ipcMain.handle('atlas:browser-press-key', (_event, options) => browserController.pressKey(options));
 ipcMain.handle('atlas:browser-scroll', (_event, options) => browserController.scroll(options));
 ipcMain.on('atlas:download-context', (_event, context) => downloadManager?.setContext(context));
-ipcMain.handle('atlas:download-read', (_event, { id, maxBytes } = {}) => {
+ipcMain.on('atlas:library-file-links', (_event, links) => downloadManager?.setLibraryLinks(links));
+ipcMain.handle('atlas:library-file-read', (_event, request) => {
   if (!downloadManager) throw new Error('Download manager is not ready.');
-  return downloadManager.readFile(id, maxBytes);
+  return downloadManager.readLibraryFile(request);
+});
+ipcMain.handle('atlas:library-file-status', (_event, request) => {
+  if (!downloadManager) throw new Error('Download manager is not ready.');
+  return downloadManager.libraryFileStatus(request);
+});
+ipcMain.handle('atlas:library-file-open', (_event, request) => {
+  if (!downloadManager) throw new Error('Download manager is not ready.');
+  return downloadManager.openLibraryFile(request);
 });
 ipcMain.handle('atlas:download-open', (_event, downloadPath) => {
   if (!downloadManager) throw new Error('Download manager is not ready.');

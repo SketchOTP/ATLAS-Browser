@@ -182,6 +182,9 @@ let conversationIdleTimer = 0;
 let conversationTtsFinish = null;
 let sidebarResizeStart = null;
 let agentTrayResizeStart = null;
+const downloadIndicators = new Map();
+const downloadIndicatorTimers = new Map();
+let downloadPopoverTimer = 0;
 const conversationMode = { active: false, targetId: 'agent-input', sessionId: '', phase: 'off', stream: null, audioContext: null, analyser: null, speechDetected: false, speechStartedAt: 0, silenceStartedAt: 0, elevatedFrames: 0, noiseFloor: 0.008, calibrationUntil: 0 };
 const CONVERSATION_IDLE_TIMEOUT_MS = 30000;
 const CONVERSATION_END_SILENCE_MS = 950;
@@ -463,7 +466,10 @@ function resourcePresentation(resource) {
   if (resource.type === 'url') return { mark: '🔗', meta: resource.url || 'Saved website' };
   if (resource.type === 'pdf') return { mark: 'PDF', meta: resource.fileName || 'PDF file' };
   if (resource.type === 'image') return { mark: 'IMG', meta: resource.fileName || 'Picture' };
-  if (resource.type === 'file') return { mark: 'FILE', meta: resource.fileName || 'Downloaded file' };
+  if (resource.type === 'file') {
+    const mark = resource.linkedFileType === 'pdf' ? 'PDF' : resource.linkedFileType === 'image' ? 'IMG' : resource.linkedFileType === 'text' ? 'TXT' : 'FILE';
+    return { mark, meta: `${resource.fileName || 'Downloaded file'} · Linked from Downloads` };
+  }
   return { mark: 'TXT', meta: 'Editable text document' };
 }
 
@@ -476,12 +482,12 @@ function downloadedResourceType(download) {
   return 'file';
 }
 
-async function importCompletedDownload(profile, project, download) {
+function linkCompletedDownload(project, download) {
   if (download.libraryResourceId || project.resources.some((resource) => resource.downloadId === download.id)) return;
-  let type = downloadedResourceType(download);
   const resource = {
     id: `resource-download-${download.id}`,
-    type,
+    type: 'file',
+    linkedFileType: downloadedResourceType(download),
     title: download.fileName,
     fileName: download.fileName,
     mimeType: download.mimeType || 'application/octet-stream',
@@ -491,27 +497,46 @@ async function importCompletedDownload(profile, project, download) {
     size: download.totalBytes || download.receivedBytes || 0,
     createdAt: download.completedAt || new Date().toISOString()
   };
-  try {
-    const sizeLimit = type === 'pdf' ? 50 * 1024 * 1024 : type === 'image' ? 25 * 1024 * 1024 : type === 'text' ? 5 * 1024 * 1024 : 0;
-    if (sizeLimit && resource.size <= sizeLimit) {
-      const payload = await window.atlasBrowser.readDownloadedFile({ id: download.id, maxBytes: sizeLimit });
-      const bytes = payload.bytes instanceof Uint8Array ? payload.bytes : new Uint8Array(payload.bytes);
-      if (type === 'text') resource.text = new TextDecoder().decode(bytes);
-      else {
-        resource.blobKey = `${profile.id}:${resource.id}`;
-        await putResourceBlob(resource.blobKey, new Blob([bytes], { type: resource.mimeType }));
-      }
-    } else if (type !== 'file') {
-      type = 'file';
-      resource.type = 'file';
-    }
-  } catch {
-    resource.type = 'file';
-    delete resource.blobKey;
-  }
   project.resources.unshift(resource);
   download.libraryResourceId = resource.id;
   saveProfiles();
+  syncLibraryFileLinks();
+}
+
+function syncLibraryFileLinks() {
+  if (!isElectron || !window.atlasBrowser.setLibraryFileLinks) return;
+  const profile = activeProfile();
+  const links = profile.workspace.projects.flatMap((project) => project.resources
+    .filter((resource) => resource.downloadPath)
+    .map((resource) => ({ profileId: profile.id, projectId: project.id, resourceId: resource.id, downloadPath: resource.downloadPath })));
+  window.atlasBrowser.setLibraryFileLinks(links);
+}
+
+async function migrateCopiedDownloadsToLinks() {
+  let changed = false;
+  for (const profile of profileStore.profiles) {
+    for (const project of profile.workspace.projects) {
+      for (const resource of project.resources) {
+        if (!resource.downloadId || !resource.downloadPath) continue;
+        if (resource.blobKey || resource.text !== undefined) {
+          try { await window.atlasBrowser.getLibraryFileStatus({ profileId: profile.id, projectId: project.id, resourceId: resource.id }); }
+          catch { continue; }
+        }
+        if (!resource.linkedFileType) { resource.linkedFileType = downloadedResourceType(resource); changed = true; }
+        if (resource.type !== 'file') changed = true;
+        resource.type = 'file';
+        if (resource.blobKey) {
+          try { await deleteResourceBlob(resource.blobKey); } catch {}
+          delete resource.blobKey;
+          changed = true;
+        }
+        if (resource.text !== undefined) { delete resource.text; changed = true; }
+      }
+    }
+  }
+  if (changed) saveProfiles();
+  syncLibraryFileLinks();
+  if (changed) render();
 }
 
 async function hydrateLibraryPreviews() {
@@ -546,13 +571,40 @@ function formatDownloadSize(bytes) {
   return `${(value / 1024 / 1024).toFixed(value < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
+function renderDownloadIndicator() {
+  const indicator = downloadIndicators.get(activeProjectId);
+  const button = $('download-button');
+  const visible = Boolean(indicator && ['progressing', 'completed', 'cancelled', 'interrupted'].includes(indicator.state));
+  const percent = visible ? Math.min(100, Math.max(0, Number(indicator.percent) || 0)) : 0;
+  button.style.setProperty('--download-ring-angle', `${percent * 3.6}deg`);
+  button.classList.toggle('download-active', visible && indicator.state === 'progressing');
+  button.classList.toggle('download-complete', visible && indicator.state === 'completed');
+  button.classList.toggle('download-failed', visible && ['cancelled', 'interrupted'].includes(indicator.state));
+  button.setAttribute('aria-label', visible && indicator.state === 'progressing' ? `Downloads, ${Math.round(percent)} percent complete` : 'Downloads');
+}
+
+function updateDownloadIndicator(download) {
+  const projectId = String(download.projectId || '');
+  if (!projectId) return;
+  const previousTimer = downloadIndicatorTimers.get(projectId);
+  if (previousTimer) clearTimeout(previousTimer);
+  downloadIndicators.set(projectId, { id: download.id, state: download.state, percent: download.percent });
+  if (download.event === 'done') {
+    const timer = setTimeout(() => {
+      if (downloadIndicators.get(projectId)?.id === download.id) downloadIndicators.delete(projectId);
+      downloadIndicatorTimers.delete(projectId);
+      renderDownloadIndicator();
+    }, 3800);
+    downloadIndicatorTimers.set(projectId, timer);
+  }
+  renderDownloadIndicator();
+}
+
 function renderDownloads() {
   const project = currentProject();
   const downloads = project?.downloads || [];
   $('download-project-label').textContent = project?.name || 'No project selected';
-  $('download-badge').textContent = downloads.length > 99 ? '99+' : String(downloads.length);
-  $('download-badge').classList.toggle('hidden', downloads.length === 0);
-  $('download-button').classList.toggle('has-unread', downloads.length > 0);
+  renderDownloadIndicator();
   $('download-list').innerHTML = downloads.length ? downloads.map((download) => {
     const state = ['completed', 'cancelled', 'interrupted'].includes(download.state) ? download.state : 'progressing';
     const status = state === 'completed' ? `Finished · ${formatDownloadSize(download.totalBytes || download.receivedBytes)}` : state === 'progressing' ? `${Math.round(download.percent || 0)}% · ${formatDownloadSize(download.totalBytes)}` : state === 'cancelled' ? 'Download cancelled' : 'Download interrupted';
@@ -562,14 +614,17 @@ function renderDownloads() {
   }).join('') : '<div class="empty-notifications">No downloads for this project.</div>';
 }
 
-function openDownloads() {
+function openDownloads(autoCloseMs = 0) {
+  if (downloadPopoverTimer) { clearTimeout(downloadPopoverTimer); downloadPopoverTimer = 0; }
   closeNotifications();
   renderDownloads();
   $('download-popover').classList.remove('hidden');
   requestAnimationFrame(syncDesktopBounds);
+  if (autoCloseMs) downloadPopoverTimer = setTimeout(() => { downloadPopoverTimer = 0; closeDownloads(); }, autoCloseMs);
 }
 
 function closeDownloads() {
+  if (downloadPopoverTimer) { clearTimeout(downloadPopoverTimer); downloadPopoverTimer = 0; }
   $('download-popover').classList.add('hidden');
   requestAnimationFrame(syncDesktopBounds);
 }
@@ -594,6 +649,7 @@ async function handleDownloadEvent(payload) {
   const profile = profileStore.profiles.find((entry) => entry.id === payload?.profileId);
   const project = profile?.workspace?.projects?.find((entry) => entry.id === payload?.projectId);
   if (!profile || !project) return;
+  updateDownloadIndicator(payload);
   project.downloads ||= [];
   let download = project.downloads.find((entry) => entry.id === payload.id);
   if (!download) {
@@ -607,14 +663,14 @@ async function handleDownloadEvent(payload) {
   if (isCurrentProject) renderDownloads();
   if (downloadEvent !== 'done') return;
   if (download.state === 'completed') {
-    await importCompletedDownload(profile, project, download);
+    linkCompletedDownload(project, download);
     if (isCurrentProject) {
       render();
-      openDownloads();
-      toast(`${download.fileName} downloaded and added to ${project.name} Library`);
+      openDownloads(6000);
+      toast(`${download.fileName} downloaded and linked in ${project.name} Library`);
     }
   } else if (isCurrentProject) {
-    openDownloads();
+    openDownloads(6000);
     toast(`${download.fileName} did not finish downloading`);
   }
   saveProfiles();
@@ -773,6 +829,7 @@ function renderConversationModeUI() {
 function render() {
   const item = currentProject();
   if (isElectron) window.atlasBrowser.setDownloadContext({ profileId: activeProfile().id, projectId: item?.id || '', tabId: currentTab()?.id || '' });
+  syncLibraryFileLinks();
   renderProfileHeader();
   renderProjects();
   document.querySelector('.workspace').classList.toggle('browser-workspace', activeView === 'browser');
@@ -1091,6 +1148,7 @@ function switchProfile(profileId) {
   saveProfiles();
   closeProfileManager();
   render();
+  migrateCopiedDownloadsToLinks();
   configureActiveAgentProvider();
   configurePrivacyShield(profile.settings.privacyMode);
   if (!profile.settings.walkthroughCompleted) setTimeout(() => startWalkthrough(false), 350);
@@ -1276,7 +1334,7 @@ async function openResource(resource) {
   if (resource.type === 'url') return openResourceUrl(resource);
   if (resource.type === 'text') return openResourceEditor(resource);
   if (resource.type === 'file' && resource.downloadPath && isElectron) {
-    try { await window.atlasBrowser.openDownloadedFile(resource.downloadPath); }
+    try { await window.atlasBrowser.openLibraryFile({ profileId: activeProfile().id, projectId: activeProjectId, resourceId: resource.id }); }
     catch (error) { toast(error.message || 'The downloaded file could not be opened'); }
     return;
   }
@@ -2001,7 +2059,26 @@ async function executeAtlasAgentTool(request) {
   }
   if (request.tool === 'atlas_read_resource') {
     const project = requireProject(); const resource = project.resources.find((entry) => entry.id === args.resourceId); if (!resource) throw new Error('Resource not found.');
-    const result = { ...resource }; delete result.blobKey;
+    const result = { ...resource }; delete result.blobKey; delete result.downloadPath;
+    if (resource.type === 'file' && resource.downloadPath) {
+      const linkedType = resource.linkedFileType || downloadedResourceType(resource);
+      if (linkedType === 'file') {
+        const status = await window.atlasBrowser.getLibraryFileStatus({ profileId: activeProfile().id, projectId: project.id, resourceId: resource.id });
+        result.file = { name: resource.fileName, mimeType: resource.mimeType, size: status.size, linkedFromDownloads: true, contentMode: 'metadata-only' };
+        return result;
+      }
+      const maxBytes = linkedType === 'pdf' ? 50 * 1024 * 1024 : linkedType === 'image' ? 25 * 1024 * 1024 : 5 * 1024 * 1024;
+      const payload = await window.atlasBrowser.readLibraryFile({ profileId: activeProfile().id, projectId: project.id, resourceId: resource.id, maxBytes });
+      const bytes = payload.bytes instanceof Uint8Array ? payload.bytes : new Uint8Array(payload.bytes);
+      result.file = { name: resource.fileName, mimeType: resource.mimeType, size: payload.size, linkedFromDownloads: true };
+      if (linkedType === 'text') result.text = new TextDecoder().decode(bytes);
+      if (linkedType === 'pdf') result.pdf = await window.atlasBrowser.extractPdfText(bytes);
+      if (linkedType === 'image') {
+        const imageUrl = await blobToDataUrl(new Blob([bytes], { type: resource.mimeType || 'application/octet-stream' }));
+        return { _contentItems: [{ type: 'inputText', text: JSON.stringify(result) }, { type: 'inputImage', imageUrl }] };
+      }
+      return result;
+    }
     if (resource.blobKey) {
       const blob = await getResourceBlob(resource.blobKey);
       result.file = blob ? { name: resource.fileName, mimeType: resource.mimeType, size: blob.size } : null;
@@ -2865,6 +2942,7 @@ if (isElectron) {
   renderAgentUsage(null);
   renderPrivacyStatus({ mode: activeProfile().settings.privacyMode });
 }
+migrateCopiedDownloadsToLinks();
 if (!activeProfile().settings.walkthroughCompleted) setTimeout(() => startWalkthrough(false), 450);
 checkDueTasks();
 setInterval(checkDueTasks, 30000);

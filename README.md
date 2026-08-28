@@ -12,7 +12,7 @@
   [![Node.js](https://img.shields.io/badge/Node.js-20%2B-FFFFFF?style=for-the-badge&logo=nodedotjs&logoColor=B026FF&labelColor=08050A)](https://nodejs.org/)
   [![Local first](https://img.shields.io/badge/workspace-local--first-B026FF?style=for-the-badge&labelColor=08050A)](#privacy-and-data)
 
-  [Features](#features) · [Quick start](#quick-start) · [Agent providers](#agent-providers) · [Architecture](#architecture) · [Contributing](#contributing)
+  [Features](#features) · [Quick start](#quick-start) · [Agent providers](#agent-providers) · [Architecture](#architecture) · [Agent handbook](https://app.notion.com/p/3ca833cb27ff811589f8e32ceefa8883) · [Contributing](#contributing)
 </div>
 
 ---
@@ -27,6 +27,8 @@ ATLAS is local-first and provider-flexible. Codex CLI with ChatGPT OAuth is the 
 
 > [!IMPORTANT]
 > ATLAS is currently alpha software. It is suitable for development and personal experimentation, but it does not yet ship signed installers, automatic updates, cloud synchronization, or a stable data-migration guarantee.
+
+The [ATLAS Browser Complete Agent and Maintainer Guide](https://app.notion.com/p/3ca833cb27ff811589f8e32ceefa8883) (Notion workspace access required) is the long-form operational handbook for incoming agents and maintainers. It documents product behavior, architecture, data boundaries, tool scope, download capabilities, verification procedures, and safe-change rules. The repository remains authoritative when implementation details differ.
 
 ## Why ATLAS?
 
@@ -56,8 +58,8 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 - Back, forward, reload, address/search input, and configurable new-tab page
 - Project bookmark bars with custom names and neon colors
 - Global bookmarks that automatically appear in existing and future projects
-- Project-scoped downloads with progress, completion history, and one-click file opening
-- Automatic import of completed downloads into the active project Library
+- Project-scoped downloads with a circular live-progress indicator, completion bubble, history, and one-click file opening
+- Automatic linking of completed downloads into the active project Library without duplicating file contents
 - Right-click **Send to Library** for highlighted webpage text
 - Modern-site compatibility handling, including a browser-compatible user agent
 - Agent-driven inspection, native clicking, text entry, key input, and scrolling in the active website tab
@@ -67,11 +69,19 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 ### Project library
 
 - Save the current page directly from the browser toolbar
-- Store titled URLs, editable text documents, PDFs, images, and downloaded files
+- Store titled URLs, editable text documents, PDFs, images, and exact links to downloaded files
 - Open saved URLs in new ATLAS tabs
 - View PDFs and images inside ATLAS
-- Keep binary resources in IndexedDB and project metadata in the local profile
+- Keep manually uploaded binary resources in IndexedDB while downloaded resources remain single-copy files in the operating system Downloads folder
 - Make project resources available to the selected agent scope
+
+### Downloads and linked Library files
+
+ATLAS captures Electron's native download lifecycle for the active project. While a file is downloading, the ring around the Downloads icon fills from empty to complete. On completion, the ring briefly remains full and ATLAS opens a short-lived completion bubble. Clicking the icon at any time opens the current project's download history; dismissing a history row is only an acknowledgement and never deletes the disk file or its Library entry.
+
+Completed downloads remain in the operating system Downloads folder. The project Library stores an exact link and metadata—filename, MIME type, source URL, size, and completion time—rather than a second copy. Removing the Library entry does not delete the original download.
+
+Linked-file access is project-capability scoped. The agent context never receives a Downloads path, ATLAS exposes no folder-listing tool, and a Library read is authorized against the exact active-profile, project, and resource identifiers. Text, PDF, and image links can be read by the scoped agent through that resource; neighboring files in Downloads are not reachable through the Library tool.
 
 ### Tasks and notes
 
@@ -276,6 +286,9 @@ flowchart TB
     UI --> IDB[PDF and image blobs\nIndexedDB]
     Main --> Secret[Encrypted endpoint secrets\nElectron safeStorage]
     Main --> Voice[Local Whisper and Kokoro]
+    Main --> Downloads[Project download manager\nexact linked-file authorization]
+    Downloads --> OSDownloads[OS Downloads folder\nsingle file copy]
+    UI --> Downloads
 ```
 
 ### Repository layout
@@ -287,6 +300,7 @@ ATLAS-Browser/
 ├── agent-providers.mjs     # Provider catalog and portable adapter implementations
 ├── codex-agent.mjs         # Native Codex App Server integration and ATLAS tools
 ├── browser-control.mjs     # Inspected-element refs and native website input controls
+├── download-manager.mjs    # Native download lifecycle and exact Library-file capabilities
 ├── local-voice.mjs         # Local Whisper transcription
 ├── local-tts.mjs           # Kokoro worker lifecycle and voice catalog
 ├── privacy-shield.mjs      # Website tracking protection and data clearing
@@ -315,10 +329,11 @@ The current tool bridge allows an agent to:
 - Create, edit, complete, or delete tasks
 - Save the current page or add a URL to the library
 - Read text, PDF, and image library resources
+- Read an exact downloaded file only when it is linked to an allowed project Library resource
 - Rewrite editable text resources
 - Create, update, or delete project notes
 
-Website text and saved content are treated as untrusted data. The host validates project scope for every tool request, and destructive tools are instructed to run only after an explicit user request.
+Website text and saved content are treated as untrusted data. The host validates project scope for every tool request, and destructive tools are instructed to run only after an explicit user request. Downloaded-file tools accept project and resource identifiers, not arbitrary paths, and do not expose directory enumeration.
 
 Browser interaction tools are included in the shared `atlasDynamicTools` catalog, so they are exposed to Codex App Server, structured CLI adapters, and OpenAI-compatible function-tool providers. Every interaction requires the active project and tab identifiers. Element references expire when the agent inspects again and should be refreshed after navigation or a major page update. ATLAS does not expose an arbitrary JavaScript-evaluation tool to providers.
 
@@ -346,6 +361,7 @@ ATLAS does not include personal projects, profiles, tokens, or API keys in a fre
 | --- | --- |
 | Profiles, projects, tabs, bookmarks, tasks, notes, conversations | Electron renderer local storage |
 | Uploaded PDFs and images | IndexedDB |
+| Website downloads | Operating-system Downloads folder; Library stores only an exact project-scoped link and metadata |
 | OpenAI-compatible endpoint keys | Electron `safeStorage`, encrypted by the operating system |
 | Codex, Claude, Cursor, and other CLI credentials | Owned by the corresponding CLI, outside ATLAS |
 | Temporary microphone recordings | Operating-system temporary directory, deleted after transcription |
@@ -404,6 +420,15 @@ When changing agent providers, test both a clean temporary profile and an existi
 - For Codex, run `codex login status`, then use **Test connection** in ATLAS Settings.
 - For another CLI, configure a usage command or a manual percentage.
 - Some providers do not expose subscription quotas programmatically; in that case Unavailable is intentional.
+
+</details>
+
+<details>
+<summary><strong>A linked Library download will not open</strong></summary>
+
+- Confirm the original file still exists in the operating system Downloads folder.
+- The Library entry is a link, not a copy; moving or deleting the original breaks the link.
+- Re-download the file from its source to create a new linked Library entry.
 
 </details>
 

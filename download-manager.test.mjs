@@ -24,7 +24,7 @@ class MockDownload extends EventEmitter {
   setSavePath(value) { this.savePath = value; }
 }
 
-test('captures project context and exposes a completed download for Library import', async (t) => {
+test('captures project context and links only an explicitly authorized Library file', async (t) => {
   const downloadsPath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'atlas-download-manager-'));
   t.after(() => fs.promises.rm(downloadsPath, { recursive: true, force: true }));
   const events = [];
@@ -48,8 +48,12 @@ test('captures project context and exposes a completed download for Library impo
   assert.equal(done.event, 'done');
   assert.equal(done.state, 'completed');
   assert.equal(done.percent, 100);
-  const imported = await manager.readFile(done.id, 1024);
-  assert.equal(imported.bytes.toString(), 'hello atlas!');
+  manager.setLibraryLinks([{ profileId: 'profile-1', projectId: 'project-1', resourceId: 'resource-1', downloadPath: item.savePath }]);
+  const linked = await manager.readLibraryFile({ profileId: 'profile-1', projectId: 'project-1', resourceId: 'resource-1', maxBytes: 1024 });
+  assert.equal(linked.bytes.toString(), 'hello atlas!');
+  assert.deepEqual(await manager.libraryFileStatus({ profileId: 'profile-1', projectId: 'project-1', resourceId: 'resource-1' }), { available: true, fileName: 'research.txt', size: 12 });
+  await assert.rejects(() => manager.readLibraryFile({ profileId: 'profile-1', projectId: 'project-1', resourceId: 'resource-2' }), /not authorized/);
+  await assert.rejects(() => manager.readLibraryFile({ profileId: 'profile-1', projectId: 'project-2', resourceId: 'resource-1' }), /not authorized/);
 });
 
 test('uses collision-safe names and only opens files inside the configured downloads folder', async (t) => {
@@ -65,4 +69,6 @@ test('uses collision-safe names and only opens files inside the configured downl
   assert.deepEqual(await manager.openSavedFile(localFile), { opened: true });
   assert.deepEqual(opened, [localFile]);
   await assert.rejects(() => manager.openSavedFile(path.join(downloadsPath, '..', 'outside.pdf')), /configured Downloads folder/);
+  manager.setLibraryLinks([{ profileId: 'p', projectId: 'a', resourceId: 'r', downloadPath: path.join(downloadsPath, '..', 'outside.pdf') }]);
+  await assert.rejects(() => manager.openLibraryFile({ profileId: 'p', projectId: 'a', resourceId: 'r' }), /not authorized/);
 });
