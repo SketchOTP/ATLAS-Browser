@@ -720,6 +720,8 @@ const privacyModeDetails = {
   strict: { title: 'Strict protection', copy: 'Adds telemetry blocking and a generic reduced user agent while withholding browser-brand and platform hints. This can trigger extra verification or break some websites.' }
 };
 
+const normalizePrivacyMode = (mode) => ['off', 'balanced', 'strict'].includes(mode) ? mode : 'balanced';
+
 function renderPrivacyStatus(status = privacyStatus) {
   privacyStatus = { ...privacyStatus, ...(status || {}) };
   const mode = privacyStatus.mode || activeProfile().settings.privacyMode || 'balanced';
@@ -734,9 +736,19 @@ function renderPrivacyStatus(status = privacyStatus) {
 }
 
 async function configurePrivacyShield(mode = activeProfile().settings.privacyMode || 'balanced') {
-  if (!isElectron || !window.atlasBrowser.setPrivacyMode) return renderPrivacyStatus({ mode });
-  try { renderPrivacyStatus(await window.atlasBrowser.setPrivacyMode(mode)); }
+  const normalizedMode = normalizePrivacyMode(mode);
+  if (!isElectron || !window.atlasBrowser.setPrivacyMode) return renderPrivacyStatus({ mode: normalizedMode });
+  try { renderPrivacyStatus(await window.atlasBrowser.setPrivacyMode(normalizedMode)); }
   catch (error) { toast(`Privacy shield unavailable: ${error.message}`); }
+}
+
+async function persistPrivacyMode(mode) {
+  const profile = activeProfile();
+  const normalizedMode = normalizePrivacyMode(mode);
+  profile.settings.privacyMode = normalizedMode;
+  saveProfiles();
+  renderPrivacyStatus({ ...privacyStatus, mode: normalizedMode });
+  await configurePrivacyShield(normalizedMode);
 }
 
 const activeAgentSession = () => state.agentSessions.find((session) => session.id === activeAgentSessionId);
@@ -2659,9 +2671,7 @@ $('agent-usage-mode').addEventListener('change', () => {
   $('agent-usage-command-field').classList.toggle('hidden', $('agent-usage-mode').value !== 'command');
   $('agent-usage-manual-field').classList.toggle('hidden', $('agent-usage-mode').value !== 'manual');
 });
-$('privacy-mode').addEventListener('change', (event) => {
-  renderPrivacyStatus({ ...privacyStatus, mode: event.target.value });
-});
+$('privacy-mode').addEventListener('change', (event) => persistPrivacyMode(event.target.value));
 $('clear-website-data').addEventListener('click', async () => {
   if (!confirm('Clear all website cookies, cache, and stored site data? This will sign you out of websites in ATLAS, but it will not delete projects, tabs, bookmarks, notes, tasks, or Library resources.')) return;
   const button = $('clear-website-data');

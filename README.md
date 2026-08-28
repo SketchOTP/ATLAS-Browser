@@ -341,7 +341,7 @@ The inspector currently targets the top-level website document. It reports the n
 
 ## Privacy Shield
 
-Privacy Shield is configured per ATLAS profile under **Settings → Privacy shield**. New profiles use **Balanced** mode by default.
+Privacy Shield is configured per ATLAS profile under **Settings → Privacy shield**. A mode change is applied and saved to the active profile immediately, so it survives closing ATLAS without requiring the main Settings save button. Switching profiles restores that profile's saved mode. New profiles use **Balanced** mode by default.
 
 | Mode | Behavior |
 | --- | --- |
