@@ -58,7 +58,6 @@ function sanitizedNavigationUrl(value) {
 
 function genericUserAgent(baseUserAgent) {
   return String(baseUserAgent)
-    .replace(/\([^)]*\)/, '(Windows NT 10.0; Win64; x64)')
     .replace(/Chrome\/(\d+)\.\S+/, 'Chrome/$1.0.0.0');
 }
 

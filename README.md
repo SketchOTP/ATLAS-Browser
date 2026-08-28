@@ -348,7 +348,7 @@ Privacy Shield is configured per ATLAS profile under **Settings → Privacy shie
 | --- | --- |
 | **Off** | Uses the compatibility user agent without tracker blocking, tracking-parameter cleanup, or privacy request headers. Sandboxing and restrictive website permissions remain enabled. |
 | **Balanced** | Blocks common advertising and analytics hosts, removes common marketing parameters from top-level links, sends Do Not Track and Global Privacy Control signals, withholds high-entropy client hints, and declines sensitive website permissions. |
-| **Strict** | Adds known telemetry hosts, uses a generic reduced browser user agent, withholds browser-brand and platform hints, and normalizes language headers. This can trigger additional verification or break some sites. |
+| **Strict** | Adds known telemetry hosts, uses a reduced browser user agent that preserves only the real operating-system family for sign-in compatibility, withholds detailed browser-brand and platform hints, and normalizes language headers. This can trigger additional verification or break some sites. |
 
 The Privacy Shield card displays the number of tracker requests blocked and navigation links cleaned during the current app session. **Clear cookies and website data** clears ATLAS website cookies, cache, and site storage and signs the browser out of websites. It does not remove ATLAS profiles, projects, tabs, bookmarks, tasks, notes, conversations, or Library resources.
 
