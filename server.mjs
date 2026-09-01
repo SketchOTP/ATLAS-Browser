@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, 'public');
-const port = Number(process.env.ATLAS_BROWSER_PORT || 48173);
+export const port = Number(process.env.ATLAS_BROWSER_PORT || 48173);
+export const origin = `http://localhost:${port}`;
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 
 const server = http.createServer(async (request, response) => {
@@ -46,7 +47,7 @@ export function startServer() {
     server.once('error', reject);
     server.listen(port, () => {
       server.off('error', reject);
-      console.log(`ATLAS Browser running at http://localhost:${port}`);
+      console.log(`ATLAS Browser running at ${origin}`);
       resolve(server);
     });
   });

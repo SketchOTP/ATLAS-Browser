@@ -1,20 +1,51 @@
 {
   "name": "atlas-browser",
-  "productName": "ATLAS Browser",
+  "productName": "ATLAS",
   "version": "0.1.0",
+  "description": "A project-centered desktop browser for agentic research, durable context, and focused execution.",
   "private": true,
   "type": "module",
   "main": "electron-main.mjs",
+  "license": "MIT",
+  "author": {
+    "name": "SketchOTP",
+    "email": "143392713+SketchOTP@users.noreply.github.com",
+    "url": "https://github.com/SketchOTP"
+  },
+  "desktopName": "atlas.desktop",
+  "homepage": "https://github.com/SketchOTP/ATLAS-Browser#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SketchOTP/ATLAS-Browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SketchOTP/ATLAS-Browser/issues"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.19.0",
   "scripts": {
     "start": "electron .",
     "serve": "node server.mjs",
-    "check": "node --check server.mjs && node --check electron-main.mjs && node --check preload.cjs && node --check codex-agent.mjs && node --check agent-providers.mjs && node --check browser-control.mjs && node --check download-manager.mjs && node --check privacy-shield.mjs && node --check public/app.js",
-    "test": "node --test auth-compatibility.test.mjs download-manager.test.mjs privacy-shield.test.mjs"
+    "check": "node --check server.mjs && node --check electron-main.mjs && node --check preload.cjs && node --check codex-agent.mjs && node --check agent-providers.mjs && node --check browser-control.mjs && node --check download-manager.mjs && node --check privacy-shield.mjs && node --check profile-website-sessions.mjs && node --check project-browser-isolation.mjs && node --check website-media-permissions.mjs && node --check website-window-routing.mjs && node --check public/app.js",
+    "test": "node --test codex-agent-tools.test.mjs download-manager.test.mjs privacy-shield.test.mjs profile-website-sessions.test.mjs project-browser-isolation.test.mjs website-media-permissions.test.mjs website-window-routing.test.mjs public/tests/*.test.mjs",
+    "audit:release": "node scripts/audit-release.mjs",
+    "screenshots": "ATLAS_BROWSER_PORT=49282 node scripts/capture-release-screenshots.mjs",
+    "package:dir": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux AppImage deb",
+    "dist:win": "electron-builder --win nsis portable",
+    "verify:package": "node scripts/verify-package.mjs",
+    "smoke:linux": "bash scripts/smoke-packaged-linux.sh",
+    "release:check": "pnpm run check && pnpm test && pnpm audit --prod --audit-level high && pnpm run audit:release"
   },
   "devDependencies": {
-    "electron": "^44.0.0"
+    "@electron/asar": "^4.3.0",
+    "electron": "^44.1.1",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "^6.3.289"
   }
 }

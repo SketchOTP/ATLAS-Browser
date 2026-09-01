@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +9,13 @@ function pythonInvocation() {
   if (process.platform === 'win32') return { command: 'py.exe', args: ['-3.11'] };
   const projectPython = fileURLToPath(new URL('./.venv/bin/python3', import.meta.url));
   return { command: fs.existsSync(projectPython) ? projectPython : 'python3', args: [] };
+}
+
+function workerPath() {
+  const packagedWorker = process.resourcesPath ? path.join(process.resourcesPath, 'voice', 'kokoro_worker.py') : '';
+  return packagedWorker && fs.existsSync(packagedWorker)
+    ? packagedWorker
+    : fileURLToPath(new URL('./voice/kokoro_worker.py', import.meta.url));
 }
 
 export const kokoroVoices = [
@@ -48,8 +56,9 @@ export class LocalTtsService {
   start() {
     if (this.child && !this.child.killed) return;
     const python = pythonInvocation();
-    this.child = spawn(python.command, [...python.args, fileURLToPath(new URL('./voice/kokoro_worker.py', import.meta.url))], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
-    readline.createInterface({ input: this.child.stdout }).on('line', (line) => {
+    const child = spawn(python.command, [...python.args, workerPath()], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    this.child = child;
+    readline.createInterface({ input: child.stdout }).on('line', (line) => {
       let message;
       try { message = JSON.parse(line); } catch { return; }
       const pending = this.pending.get(message.id);
@@ -58,8 +67,9 @@ export class LocalTtsService {
       this.pending.delete(message.id);
       if (message.error) pending.reject(new Error(message.error)); else pending.resolve(message.result);
     });
-    this.child.stderr.on('data', (chunk) => console.error(`KOKORO_TTS ${chunk.toString().trim()}`));
-    this.child.on('exit', () => {
+    child.stderr.on('data', (chunk) => console.error(`KOKORO_TTS ${chunk.toString().trim()}`));
+    child.on('exit', () => {
+      if (this.child !== child) return;
       for (const pending of this.pending.values()) { clearTimeout(pending.timeout); pending.reject(new Error('Local voice engine stopped')); }
       this.pending.clear();
       this.child = null;
@@ -78,5 +88,14 @@ export class LocalTtsService {
     });
   }
 
-  stop() { this.child?.kill(); }
+  stop() {
+    const child = this.child;
+    this.child = null;
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error('Local voice generation cancelled'));
+    }
+    this.pending.clear();
+    child?.kill();
+  }
 }

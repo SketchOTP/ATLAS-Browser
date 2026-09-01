@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Petz 4's legacy licensing helper can emit this URL in an unbounded loop.
+# Reject it before starting Electron so ATLAS cannot become the amplifier.
+for launch_arg in "$@"; do
+  case "${launch_arg,,}" in
+    http://amlocalhost.com/*|https://amlocalhost.com/*)
+      exit 0
+      ;;
+  esac
+done
+
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 runtime_root="${XDG_CACHE_HOME:-$HOME/.cache}/codex-runtimes/codex-primary-runtime/dependencies"
 if [[ -d "$runtime_root/node/bin" ]]; then

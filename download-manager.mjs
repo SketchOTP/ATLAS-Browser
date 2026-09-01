@@ -23,10 +23,11 @@ function isInsideDirectory(parentPath, candidatePath) {
 }
 
 export class DownloadManager {
-  constructor({ downloadsPath, onEvent = () => {}, openPath = async () => '' }) {
+  constructor({ downloadsPath, onEvent = () => {}, openPath = async () => '', getContextForWebContents = () => null }) {
     this.downloadsPath = path.resolve(downloadsPath);
     this.onEvent = onEvent;
     this.openPath = openPath;
+    this.getContextForWebContents = getContextForWebContents;
     this.context = { profileId: '', projectId: '', tabId: '' };
     this.records = new Map();
     this.libraryLinks = new Map();
@@ -59,7 +60,7 @@ export class DownloadManager {
     if (!browserSession || this.attachedSessions.has(browserSession)) return;
     this.attachedSessions.add(browserSession);
     fs.mkdirSync(this.downloadsPath, { recursive: true });
-    browserSession.on('will-download', (_event, item) => this.#track(item));
+    browserSession.on('will-download', (_event, item, webContents) => this.#track(item, this.getContextForWebContents(webContents) || this.context));
   }
 
   async readLibraryFile({ profileId, projectId, resourceId, maxBytes = 50 * 1024 * 1024 } = {}) {
@@ -99,13 +100,13 @@ export class DownloadManager {
     return downloadPath;
   }
 
-  #track(item) {
+  #track(item, context) {
     const id = randomUUID();
     const savePath = availableDownloadPath(this.downloadsPath, item.getFilename());
     item.setSavePath(savePath);
     const record = {
       id,
-      ...this.context,
+      ...context,
       fileName: path.basename(savePath),
       savePath,
       url: item.getURL(),

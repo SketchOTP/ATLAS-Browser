@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible ATLAS defect using sanitized information.
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, cookies, private project data, or personal browsing history. Security concerns belong in private vulnerability reporting.
+  - type: input
+    id: version
+    attributes:
+      label: ATLAS version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, Windows 11, etc.
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Agent provider
+      options: [Not involved, Codex CLI, Claude Code, Antigravity CLI, Cursor Agent, OpenClaw, Hermes Agent, Custom CLI, OpenAI-compatible URL]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Prefer a clean temporary profile and synthetic project data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed credentials, private URLs, profile data, and personal documents.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

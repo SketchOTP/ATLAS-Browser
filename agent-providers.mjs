@@ -3,10 +3,10 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CodexAgentServer, atlasAgentInstructions, atlasDynamicTools } from './codex-agent.mjs';
+import { CodexAgentServer, atlasAgentInstructions, atlasDynamicTools, atlasToolCatalogVersion } from './codex-agent.mjs';
 
 export const providerTemplates = {
-  codex: { id: 'codex', name: 'Codex CLI', transport: 'codex-app-server', executable: 'codex', model: 'gpt-5.6-luna', authCommand: ['codex', 'login'], statusCommand: ['codex', 'login', 'status'], usageMode: 'native', mcp: true },
+  codex: { id: 'codex', name: 'Codex CLI', transport: 'codex-app-server', executable: 'codex', model: '', authCommand: ['codex', 'login'], statusCommand: ['codex', 'login', 'status'], usageMode: 'native', mcp: true },
   claude: { id: 'claude', name: 'Claude Code', transport: 'structured-cli', executable: 'claude', model: '', args: ['-p', '{prompt}', '--output-format', 'json'], authCommand: ['claude', 'auth', 'login'], statusCommand: ['claude', 'auth', 'status'], usageMode: 'manual', mcp: true },
   antigravity: { id: 'antigravity', name: 'Antigravity CLI', transport: 'structured-cli', executable: 'agy', model: '', args: ['-p', '{prompt}', '--output-format', 'json'], authCommand: ['agy'], statusCommand: ['agy', '--version'], usageCommand: ['agy', '-p', '/usage'], usageMode: 'command', mcp: true },
   cursor: { id: 'cursor', name: 'Cursor Agent', transport: 'structured-cli', executable: 'cursor-agent', model: '', args: ['-p', '{prompt}', '--output-format', 'json'], authCommand: ['cursor-agent', 'login'], statusCommand: ['cursor-agent', 'status'], usageMode: 'manual', mcp: true },
@@ -108,7 +108,7 @@ class StructuredCliAgentServer extends EventEmitter {
 
   async start() {
     if (!executableExists(this.config.executable)) throw new Error(`${this.config.name} is not installed or its executable path is incorrect.`);
-    const status = { state: 'ready', providerId: this.config.id, providerName: this.config.name, auth: 'Managed by CLI', model: this.config.model || 'CLI default', effort: this.config.effort || 'medium', tools: atlasDynamicTools.length, mcp: Boolean(this.config.mcp) };
+    const status = { state: 'ready', providerId: this.config.id, providerName: this.config.name, auth: 'Managed by CLI', model: this.config.model || 'CLI default', effort: this.config.effort || 'medium', tools: atlasDynamicTools.length, toolCatalogVersion: atlasToolCatalogVersion, mcp: Boolean(this.config.mcp) };
     this.emit('status', status);
     return status;
   }
@@ -179,7 +179,7 @@ class OpenAiCompatibleAgentServer extends EventEmitter {
   async start() {
     if (!this.config.baseUrl || !this.config.model) throw new Error('Configure a base URL and model first.');
     if (!(await this.getSecret())) throw new Error('Add an API key for this provider in Settings.');
-    const status = { state: 'ready', providerId: this.config.id, providerName: this.config.name, auth: 'Encrypted API key', model: this.config.model, effort: this.config.effort || 'medium', tools: atlasDynamicTools.length, mcp: true };
+    const status = { state: 'ready', providerId: this.config.id, providerName: this.config.name, auth: 'Encrypted API key', model: this.config.model, effort: this.config.effort || 'medium', tools: atlasDynamicTools.length, toolCatalogVersion: atlasToolCatalogVersion, mcp: true };
     this.emit('status', status); return status;
   }
   async createThread() { await this.start(); return { id: `openai-compatible-${randomUUID()}` }; }

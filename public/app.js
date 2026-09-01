@@ -1,4 +1,4 @@
-const seed = { projects: [], globalBookmarks: [], agentSessions: [], notifications: [] };
+const seed = { projects: [], globalBookmarks: [], agentSessions: [], notifications: [], calendarEvents: [] };
 
 const storeKey = 'atlas-browser-workspace-v1';
 const profileStoreKey = 'atlas-browser-profiles-v1';
@@ -21,6 +21,7 @@ function normalizeWorkspace(workspace) {
   normalized.notifications ||= [];
   normalized.agentSessions ||= [];
   normalized.globalBookmarks ||= [];
+  normalized.calendarEvents ||= [];
   normalized.session ||= {};
   normalized.projects.forEach((project) => {
     if (project.status === 'Active') project.status = 'Active P3';
@@ -28,6 +29,7 @@ function normalizeWorkspace(workspace) {
     else if (!projectStatuses.includes(project.status)) project.status = 'Planning';
     if (!/^#[0-9a-f]{6}$/i.test(project.color || '')) project.color = legacyProjectColors[project.accent] || '#B026FF';
     project.color = neonColorMigrations[String(project.color).toUpperCase()] || String(project.color).toUpperCase();
+    project.textColor = /^#[0-9a-f]{6}$/i.test(String(project.textColor || '')) ? String(project.textColor).toUpperCase() : '';
     project.image ||= '';
     project.iconMode = project.iconMode === 'emoji' ? 'emoji' : 'image';
     project.emoji ||= '🚀';
@@ -48,6 +50,7 @@ function normalizeWorkspace(workspace) {
       bookmark.title ||= 'Bookmark';
       bookmark.url ||= '';
       bookmark.color = /^#[0-9a-f]{6}$/i.test(String(bookmark.color || '')) ? String(bookmark.color).toUpperCase() : '#B026FF';
+      bookmark.textColor = /^#[0-9a-f]{6}$/i.test(String(bookmark.textColor || '')) ? String(bookmark.textColor).toUpperCase() : '';
     });
     project.resources.forEach((resource) => {
       resource.id ||= `resource-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -88,6 +91,10 @@ function normalizeWorkspace(workspace) {
       task.priority ||= 'medium';
       task.dueAt ||= '';
       task.notifiedAt ||= '';
+      task.reminderAt ||= '';
+      task.remindedAt ||= '';
+      task.note ||= '';
+      task.calendarEventId ||= '';
       if (task.done && !Number.isFinite(new Date(task.completedAt || '').getTime())) task.completedAt = new Date().toISOString();
       if (!task.done) task.completedAt = '';
     });
@@ -104,10 +111,28 @@ function normalizeWorkspace(workspace) {
     session.busy = false;
     session.compacting = false;
     session.providerId ||= 'codex';
+    session.toolCatalogVersion = Number.isInteger(session.toolCatalogVersion) ? session.toolCatalogVersion : 0;
+  });
+  normalized.calendarEvents.forEach((event) => {
+    event.id ||= `calendar-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    event.title ||= 'Untitled event';
+    event.projectId = normalized.projects.some((project) => project.id === event.projectId) ? event.projectId : '';
+    event.taskId ||= '';
+    if (!event.projectId) event.taskId = '';
+    event.startAt ||= new Date().toISOString();
+    event.reminderAt ||= '';
+    event.remindedAt ||= '';
+    event.priority = ['high', 'medium', 'low'].includes(event.priority) ? event.priority : 'medium';
+    event.color = /^#[0-9a-f]{6}$/i.test(String(event.color || '')) ? String(event.color).toUpperCase() : '#B026FF';
+    event.note ||= '';
+  });
+  normalized.globalBookmarks.forEach((bookmark) => {
+    bookmark.color = /^#[0-9a-f]{6}$/i.test(String(bookmark.color || '')) ? String(bookmark.color).toUpperCase() : '#B026FF';
+    bookmark.textColor = /^#[0-9a-f]{6}$/i.test(String(bookmark.textColor || '')) ? String(bookmark.textColor).toUpperCase() : '';
   });
   const shared = new Map(normalized.globalBookmarks.filter((bookmark) => bookmark?.sharedId).map((bookmark) => [bookmark.sharedId, bookmark]));
   normalized.projects.flatMap((project) => project.bookmarks).filter((bookmark) => bookmark.sharedId).forEach((bookmark) => {
-    if (!shared.has(bookmark.sharedId)) shared.set(bookmark.sharedId, { sharedId: bookmark.sharedId, title: bookmark.title, url: bookmark.url, color: bookmark.color });
+    if (!shared.has(bookmark.sharedId)) shared.set(bookmark.sharedId, { sharedId: bookmark.sharedId, title: bookmark.title, url: bookmark.url, color: bookmark.color, textColor: bookmark.textColor || '' });
   });
   normalized.globalBookmarks = [...shared.values()];
   normalized.projects.forEach((project) => normalized.globalBookmarks.forEach((globalBookmark) => {
@@ -121,9 +146,9 @@ profileStore.profiles.forEach((profile) => {
   profile.email ||= 'local@atlas.invalid';
   profile.image ||= '';
   const existingWalkthroughState = profile.settings?.walkthroughCompleted;
-  profile.settings = { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', agentProvider: { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: 'medium', usageMode: 'native', secretId: `${profile.id}:codex` }, ...(profile.settings || {}) };
+  profile.settings = { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', websiteMicrophoneEnabled: true, websiteCameraEnabled: true, agentProvider: { id: 'codex', executable: 'codex', model: '', effort: 'medium', usageMode: 'native', secretId: `${profile.id}:codex` }, ...(profile.settings || {}) };
   profile.settings.walkthroughCompleted = existingWalkthroughState === undefined ? !freshInstall : Boolean(existingWalkthroughState);
-  profile.settings.agentProvider = { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: profile.settings.reasoningEffort || 'medium', usageMode: 'native', secretId: `${profile.id}:codex`, ...(profile.settings.agentProvider || {}) };
+  profile.settings.agentProvider = { id: 'codex', executable: 'codex', model: '', effort: profile.settings.reasoningEffort || 'medium', usageMode: 'native', secretId: `${profile.id}:codex`, ...(profile.settings.agentProvider || {}) };
   profile.settings.defaultPageUrl = String(profile.settings.defaultPageUrl || '').trim();
   profile.settings.sidebarWidth = Math.min(460, Math.max(210, Number(profile.settings.sidebarWidth) || 268));
   profile.settings.agentTrayHeight = Math.min(420, Math.max(72, Number(profile.settings.agentTrayHeight) || 76));
@@ -140,7 +165,6 @@ let activeTabId = state.projects.find((project) => project.id === activeProjectI
 let activeView = validViews.has(state.session?.activeView) ? state.session.activeView : 'browser';
 let activeAgentSessionId = state.agentSessions.some((session) => session.id === state.session?.activeAgentSessionId) ? state.session.activeAgentSessionId : state.agentSessions[0]?.id;
 const isElectron = Boolean(window.atlasBrowser);
-let lastDesktopUrl = '';
 let editingProjectId = null;
 let cropSource = null;
 let cropBaseScale = 1;
@@ -151,6 +175,8 @@ let cropDidDrag = false;
 let cropPointer = { x: 0, y: 0 };
 let projectIconMode = 'image';
 let editingProjectEmoji = '🚀';
+const colorPickerStates = new Map();
+let draggingColorPicker = '';
 let emojiTabId = null;
 let editingProfileId = null;
 let profileCropSource = null;
@@ -164,11 +190,17 @@ let pendingResourceFile = null;
 let resourceViewerUrl = '';
 let libraryObjectUrls = [];
 let editingTaskId = null;
+let editingCalendarEventId = null;
+let calendarDragEventId = '';
 let editingNoteId = null;
 let editingBookmarkId = null;
+let savePageBusy = false;
 let notificationSnapshot = [];
+let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let projectPointerDrag = null;
 let suppressProjectClick = false;
+let bookmarkPointerDrag = null;
+let suppressBookmarkClick = false;
 let agentRuntimeStatus = { state: 'starting', message: 'Connecting to agent provider…', providerId: activeProfile().settings.agentProvider.id };
 let agentUsage = null;
 let privacyStatus = { mode: activeProfile().settings.privacyMode, blockedRequests: 0, cleanedLinks: 0 };
@@ -185,13 +217,15 @@ let agentTrayResizeStart = null;
 const downloadIndicators = new Map();
 const downloadIndicatorTimers = new Map();
 let downloadPopoverTimer = 0;
-const conversationMode = { active: false, targetId: 'agent-input', sessionId: '', phase: 'off', stream: null, audioContext: null, analyser: null, speechDetected: false, speechStartedAt: 0, silenceStartedAt: 0, elevatedFrames: 0, noiseFloor: 0.008, calibrationUntil: 0 };
+const conversationMode = { active: false, targetId: 'agent-input', sessionId: '', suppressedSessionId: '', generation: 0, phase: 'off', stream: null, audioContext: null, analyser: null, speechDetected: false, speechStartedAt: 0, silenceStartedAt: 0, elevatedFrames: 0, noiseFloor: 0.008, calibrationUntil: 0 };
 const CONVERSATION_IDLE_TIMEOUT_MS = 30000;
 const CONVERSATION_END_SILENCE_MS = 950;
 const CONVERSATION_MAX_UTTERANCE_MS = 90000;
 let kokoroVoiceCatalog = [];
 let activeTtsAudio = null;
 let activeTtsUrl = '';
+let ttsPlaybackGeneration = 0;
+let ttsRequestPending = false;
 const emojiGroups = [
   { keywords: 'work office project productivity research study document file folder writing reading planning data chart', emojis: '🌐 🔎 🔍 📚 📖 📕 📗 📘 📙 📓 📔 📒 📃 📜 📄 📰 🗞️ 📝 ✏️ 🖊️ 🖋️ 🖌️ 🖍️ 📌 📍 📎 🖇️ 📏 📐 ✂️ 🗂️ 📁 📂 🗃️ 🗄️ 📊 📈 📉 🧾 📋 ✅ ☑️ ✔️ ❌ ❎ 🗒️ 🗓️ 📆 📅' },
   { keywords: 'technology computer coding developer software hardware ai agent robot engineering security tool', emojis: '💡 🧠 🤖 🦾 🦿 ⚙️ 🛠️ 🔧 🔨 ⛏️ 🪛 🧰 🧲 🔩 ⚗️ 🔋 🪫 🔌 💻 🖥️ 🖨️ ⌨️ 🖱️ 🖲️ 💽 💾 💿 📀 📱 ☎️ 📞 📟 📠 📺 📻 🎙️ 🎚️ 🎛️ 📡 🔐 🔒 🔓 🔑 🗝️ 🛡️ 🧯 ⚡ 🧮' },
@@ -235,6 +269,14 @@ const emojiCatalog = Array.from(emojiGroups.reduce((catalog, group) => {
   return catalog;
 }, new Map()).values());
 const $ = (id) => document.getElementById(id);
+const calendarButton = document.createElement('button');
+calendarButton.id = 'calendar-button';
+calendarButton.className = 'notification-button flat-neon-icon';
+calendarButton.type = 'button';
+calendarButton.title = 'Calendar';
+calendarButton.setAttribute('aria-label', 'Calendar');
+calendarButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z"/><path d="M7 2v4M17 2v4M3 9h18M7 13h2M11 13h2M15 13h2M7 17h2M11 17h2"/></svg>';
+$('download-button').after(calendarButton);
 const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 function sanitizeRichText(value = '') {
   const documentNode = new DOMParser().parseFromString(`<body>${value}</body>`, 'text/html');
@@ -268,6 +310,12 @@ const contrastText = (hex) => {
 };
 const currentProject = () => state.projects.find((item) => item.id === activeProjectId);
 const currentTab = () => currentProject()?.tabs.find((item) => item.id === activeTabId);
+const browserContextFor = (tab = currentTab(), project = currentProject()) => tab && project ? { profileId: activeProfile().id, projectId: project.id, tabId: tab.id } : null;
+const currentBrowserContexts = () => state.projects.flatMap((project) => project.tabs.map((tab) => ({ profileId: activeProfile().id, projectId: project.id, tabId: tab.id })));
+const matchesCurrentBrowserContext = (context) => {
+  const current = browserContextFor();
+  return Boolean(current && context && current.profileId === context.profileId && current.projectId === context.projectId && current.tabId === context.tabId);
+};
 const saveProfiles = () => localStorage.setItem(profileStoreKey, JSON.stringify(profileStore));
 const save = () => { state.session = { activeProjectId, activeTabId, activeView, activeAgentSessionId }; activeProfile().workspace = state; saveProfiles(); };
 saveProfiles();
@@ -326,7 +374,9 @@ async function updateWebsiteSurface(tab) {
   const empty = $('browser-empty');
   fallback.classList.remove('show');
   empty.classList.add('hidden');
+  const browserContext = browserContextFor(tab);
   if (!tab?.url) {
+    if (isElectron && browserContext) window.atlasBrowser.activateBrowserContext(browserContext);
     frame.classList.add('hidden');
     desktop.classList.add('hidden');
     empty.classList.remove('hidden');
@@ -336,7 +386,7 @@ async function updateWebsiteSurface(tab) {
   if (isElectron) {
     frame.classList.add('hidden');
     desktop.classList.remove('hidden');
-    if (lastDesktopUrl !== tab.url) { lastDesktopUrl = tab.url; window.atlasBrowser.navigate(tab.url); }
+    window.atlasBrowser.navigate({ context: browserContext, url: tab.url });
     requestAnimationFrame(syncDesktopBounds);
     return;
   }
@@ -358,7 +408,8 @@ function renderProjects() {
     const usesEmoji = item.iconMode === 'emoji' && item.emoji;
     const image = usesEmoji ? `<span aria-hidden="true">${escapeHtml(item.emoji)}</span>` : item.image ? `<img src="${escapeHtml(item.image)}" alt="" />` : '<span aria-hidden="true">◈</span>';
     const color = normalizeHexColor(item.color);
-    return `<div class="project-row ${item.id === activeProjectId ? 'selected' : ''}" data-project="${item.id}" role="button" tabindex="0" style="--project-color:${color};--project-ink:${contrastText(color)}"><span class="project-drag-handle" aria-hidden="true" title="Drag to reorder">⠿</span><span class="project-mini-icon ${usesEmoji ? 'project-emoji-icon' : item.image ? '' : 'placeholder'}">${image}</span><span class="project-row-copy"><span class="project-row-name">${escapeHtml(item.name)}</span><span class="project-row-state">${escapeHtml(item.status)}</span></span><button class="project-edit-button" type="button" data-project-edit="${item.id}" title="Edit ${escapeHtml(item.name)}" aria-label="Edit ${escapeHtml(item.name)}">⋮</button></div>`;
+    const textColor = /^#[0-9a-f]{6}$/i.test(String(item.textColor || '')) ? String(item.textColor).toUpperCase() : contrastText(color);
+    return `<div class="project-row ${item.id === activeProjectId ? 'selected' : ''}" data-project="${item.id}" role="button" tabindex="0" style="--project-color:${color};--project-ink:${textColor}"><span class="project-drag-handle" aria-hidden="true" title="Drag to reorder">⠿</span><span class="project-mini-icon ${usesEmoji ? 'project-emoji-icon' : item.image ? '' : 'placeholder'}">${image}</span><span class="project-row-copy"><span class="project-row-name">${escapeHtml(item.name)}</span><span class="project-row-state">${escapeHtml(item.status)}</span></span><button class="project-edit-button" type="button" data-project-edit="${item.id}" title="Edit ${escapeHtml(item.name)}" aria-label="Edit ${escapeHtml(item.name)}">⋮</button></div>`;
   }).join('') : '<div class="empty-projects">No projects found.</div>';
   const clearProjectDropIndicators = () => document.querySelectorAll('.project-row.drop-before, .project-row.drop-after').forEach((row) => row.classList.remove('drop-before', 'drop-after'));
   const finishProjectPointerDrag = (event, cancelled = false) => {
@@ -431,16 +482,79 @@ function renderBookmarks(item) {
   const bookmarks = item?.bookmarks || [];
   $('bookmark-buttons').innerHTML = bookmarks.map((bookmark) => {
     const color = normalizeHexColor(bookmark.color);
-    return `<button class="bookmark-button" type="button" data-bookmark-open="${bookmark.id}" title="${escapeHtml(bookmark.url)}" style="--bookmark-color:${color};--bookmark-ink:${contrastText(color)}">${escapeHtml(bookmark.title)}</button>`;
+    const textColor = /^#[0-9a-f]{6}$/i.test(String(bookmark.textColor || '')) ? String(bookmark.textColor).toUpperCase() : contrastText(color);
+    return `<button class="bookmark-button" type="button" data-bookmark-open="${bookmark.id}" title="${escapeHtml(bookmark.url)}" style="--bookmark-color:${color};--bookmark-ink:${textColor}">${escapeHtml(bookmark.title)}</button>`;
   }).join('');
   $('bookmarks-bar').classList.toggle('no-project', !item);
   $('add-bookmark').disabled = !item;
   $('manage-bookmarks').disabled = !item;
   if (!$('bookmark-manager').classList.contains('hidden')) renderBookmarkManager();
-  document.querySelectorAll('[data-bookmark-open]').forEach((button) => button.addEventListener('click', () => {
+  const clearBookmarkDropIndicators = () => document.querySelectorAll('.bookmark-button.drop-before, .bookmark-button.drop-after').forEach((button) => button.classList.remove('drop-before', 'drop-after'));
+  const bookmarkInsertionIndex = (clientX, draggedId) => {
+    const remaining = currentProject()?.bookmarks.filter((bookmark) => bookmark.id !== draggedId) || [];
+    const buttons = [...document.querySelectorAll('[data-bookmark-open]')].filter((button) => button.dataset.bookmarkOpen !== draggedId);
+    for (const button of buttons) {
+      if (clientX < button.getBoundingClientRect().left + button.offsetWidth / 2) return remaining.findIndex((bookmark) => bookmark.id === button.dataset.bookmarkOpen);
+    }
+    return remaining.length;
+  };
+  const finishBookmarkPointerDrag = (event, cancelled = false) => {
+    const drag = bookmarkPointerDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const project = currentProject();
+    const containerRect = $('bookmark-buttons').getBoundingClientRect();
+    const insideBar = event.clientX >= containerRect.left && event.clientX <= containerRect.right && event.clientY >= containerRect.top && event.clientY <= containerRect.bottom;
+    let moved = false;
+    if (drag.active && !cancelled && insideBar && project?.id === drag.projectId) {
+      const originalOrder = project.bookmarks.map((bookmark) => bookmark.id).join('|');
+      const dragged = project.bookmarks.find((bookmark) => bookmark.id === drag.bookmarkId);
+      if (dragged) {
+        project.bookmarks = project.bookmarks.filter((bookmark) => bookmark.id !== drag.bookmarkId);
+        project.bookmarks.splice(bookmarkInsertionIndex(event.clientX, drag.bookmarkId), 0, dragged);
+        moved = project.bookmarks.map((bookmark) => bookmark.id).join('|') !== originalOrder;
+        if (moved) save();
+      }
+    }
+    try { drag.button.releasePointerCapture(event.pointerId); } catch {}
+    drag.button.classList.remove('dragging');
+    clearBookmarkDropIndicators();
+    bookmarkPointerDrag = null;
+    if (moved) {
+      renderBookmarks(project);
+      toast('Bookmark order saved for this project');
+    }
+    setTimeout(() => { suppressBookmarkClick = false; }, 100);
+  };
+  document.querySelectorAll('[data-bookmark-open]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (suppressBookmarkClick) return;
     const bookmark = currentProject()?.bookmarks.find((entry) => entry.id === button.dataset.bookmarkOpen);
     if (bookmark) openUrlInCurrentTab(bookmark.url, `Opening ${bookmark.title}`);
-  }));
+    });
+    button.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      bookmarkPointerDrag = { bookmarkId: button.dataset.bookmarkOpen, projectId: item?.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, button, active: false };
+      try { button.setPointerCapture(event.pointerId); } catch {}
+    });
+    button.addEventListener('pointermove', (event) => {
+      const drag = bookmarkPointerDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 7) return;
+      if (!drag.active) {
+        drag.active = true;
+        suppressBookmarkClick = true;
+        drag.button.classList.add('dragging');
+      }
+      event.preventDefault();
+      clearBookmarkDropIndicators();
+      const otherButtons = [...document.querySelectorAll('[data-bookmark-open]')].filter((entry) => entry.dataset.bookmarkOpen !== drag.bookmarkId);
+      const target = otherButtons.find((entry) => event.clientX < entry.getBoundingClientRect().left + entry.offsetWidth / 2);
+      if (target) target.classList.add('drop-before');
+      else otherButtons.at(-1)?.classList.add('drop-after');
+    });
+    button.addEventListener('pointerup', (event) => finishBookmarkPointerDrag(event));
+    button.addEventListener('pointercancel', (event) => finishBookmarkPointerDrag(event, true));
+  });
 }
 
 function formatTaskDue(task) {
@@ -459,7 +573,8 @@ function formatCompletedRetention(task) {
 }
 
 function taskRow(task, completed = false) {
-  return `<div class="task ${completed ? 'completed' : ''}" data-task-id="${task.id}" role="button" tabindex="0"><button class="task-check ${task.done ? 'done' : ''}" data-task-check="${task.id}" title="Mark ${task.done ? 'incomplete' : 'complete'}">${task.done ? '✓' : ''}</button><div class="task-copy"><div class="task-title">${escapeHtml(task.title)}</div><div class="task-due">${escapeHtml(completed ? formatCompletedRetention(task) : formatTaskDue(task))}</div></div><span class="priority ${task.priority}">${escapeHtml(task.priority)}</span></div>`;
+  const note = task.note ? `<div class="task-note-preview">${escapeHtml(task.note)}</div>` : '';
+  return `<div class="task ${completed ? 'completed' : ''}" data-task-id="${task.id}" role="button" tabindex="0"><button class="task-check ${task.done ? 'done' : ''}" data-task-check="${task.id}" title="Mark ${task.done ? 'incomplete' : 'complete'}">${task.done ? '✓' : ''}</button><div class="task-copy"><div class="task-title">${escapeHtml(task.title)}</div><div class="task-due">${escapeHtml(completed ? formatCompletedRetention(task) : formatTaskDue(task))}</div>${note}</div><span class="priority ${task.priority}">${escapeHtml(task.priority)}</span></div>`;
 }
 
 function resourcePresentation(resource) {
@@ -723,6 +838,7 @@ const privacyModeDetails = {
 const normalizePrivacyMode = (mode) => ['off', 'balanced', 'strict'].includes(mode) ? mode : 'balanced';
 
 function renderPrivacyStatus(status = privacyStatus) {
+  if (status?.profileId && status.profileId !== activeProfile().id) return;
   privacyStatus = { ...privacyStatus, ...(status || {}) };
   const mode = privacyStatus.mode || activeProfile().settings.privacyMode || 'balanced';
   const detail = privacyModeDetails[mode] || privacyModeDetails.balanced;
@@ -738,8 +854,15 @@ function renderPrivacyStatus(status = privacyStatus) {
 async function configurePrivacyShield(mode = activeProfile().settings.privacyMode || 'balanced') {
   const normalizedMode = normalizePrivacyMode(mode);
   if (!isElectron || !window.atlasBrowser.setPrivacyMode) return renderPrivacyStatus({ mode: normalizedMode });
-  try { renderPrivacyStatus(await window.atlasBrowser.setPrivacyMode(normalizedMode)); }
+  try { renderPrivacyStatus(await window.atlasBrowser.setPrivacyMode({ profileId: activeProfile().id, mode: normalizedMode })); }
   catch (error) { toast(`Privacy shield unavailable: ${error.message}`); }
+}
+
+async function configureWebsiteMediaPermissions(profile = activeProfile()) {
+  const permissions = { profileId: profile.id, microphone: profile.settings.websiteMicrophoneEnabled !== false, camera: profile.settings.websiteCameraEnabled !== false };
+  if (!isElectron || !window.atlasBrowser.setWebsiteMediaPermissions) return permissions;
+  try { return await window.atlasBrowser.setWebsiteMediaPermissions(permissions); }
+  catch (error) { toast(`Camera and microphone settings unavailable: ${error.message}`); return permissions; }
 }
 
 async function persistPrivacyMode(mode) {
@@ -840,6 +963,7 @@ function renderConversationModeUI() {
 
 function render() {
   const item = currentProject();
+  if (isElectron) window.atlasBrowser.syncBrowserContexts(currentBrowserContexts());
   if (isElectron) window.atlasBrowser.setDownloadContext({ profileId: activeProfile().id, projectId: item?.id || '', tabId: currentTab()?.id || '' });
   syncLibraryFileLinks();
   renderProfileHeader();
@@ -888,9 +1012,9 @@ function render() {
 function syncDesktopBounds() {
   if (!isElectron) return;
   const rect = document.querySelector('.browser-canvas').getBoundingClientRect();
-  const overlayOpen = ['project-modal', 'profile-modal', 'resource-modal', 'resource-viewer-modal', 'task-modal', 'note-modal', 'settings-modal', 'bookmark-modal', 'bookmark-manager', 'emoji-picker', 'download-popover', 'notification-popover', 'walkthrough-overlay'].some((id) => !$(id).classList.contains('hidden'));
+  const overlayOpen = ['project-modal', 'profile-modal', 'resource-modal', 'resource-viewer-modal', 'task-modal', 'note-modal', 'settings-modal', 'bookmark-modal', 'bookmark-manager', 'emoji-picker', 'download-popover', 'notification-popover', 'calendar-modal', 'calendar-event-modal', 'walkthrough-overlay'].some((id) => !$(id).classList.contains('hidden'));
   const trayHeight = !$('agent-tray').classList.contains('hidden') ? Math.ceil($('agent-tray').getBoundingClientRect().height + 18) : 0;
-  window.atlasBrowser.setBounds({ x: rect.left, y: rect.top, width: rect.width, height: Math.max(0, rect.height - trayHeight), visible: activeView === 'browser' && Boolean(currentTab()?.url) && !overlayOpen });
+  window.atlasBrowser.setBounds({ context: browserContextFor(), x: rect.left, y: rect.top, width: rect.width, height: Math.max(0, rect.height - trayHeight), visible: activeView === 'browser' && Boolean(currentTab()?.url) && !overlayOpen });
 }
 
 function sidebarWidthLimits() {
@@ -930,14 +1054,139 @@ function applyAgentTrayHeight(value, persist = false) {
   return height;
 }
 
-function setProjectColor(value) {
+function hexToHsv(value) {
+  const hex = normalizeHexColor(value).slice(1);
+  const [red, green, blue] = [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255);
+  const maximum = Math.max(red, green, blue);
+  const minimum = Math.min(red, green, blue);
+  const delta = maximum - minimum;
+  let hue = 0;
+  if (delta) {
+    if (maximum === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (maximum === green) hue = 60 * (((blue - red) / delta) + 2);
+    else hue = 60 * (((red - green) / delta) + 4);
+  }
+  if (hue < 0) hue += 360;
+  return { h: hue, s: maximum ? delta / maximum : 0, v: maximum };
+}
+
+function hsvToHex({ h, s, v }) {
+  const hue = ((Number(h) % 360) + 360) % 360;
+  const saturation = Math.min(1, Math.max(0, Number(s)));
+  const value = Math.min(1, Math.max(0, Number(v)));
+  const chroma = value * saturation;
+  const section = hue / 60;
+  const component = chroma * (1 - Math.abs((section % 2) - 1));
+  const [red, green, blue] = section < 1 ? [chroma, component, 0]
+    : section < 2 ? [component, chroma, 0]
+      : section < 3 ? [0, chroma, component]
+        : section < 4 ? [0, component, chroma]
+          : section < 5 ? [component, 0, chroma]
+            : [chroma, 0, component];
+  const offset = value - chroma;
+  return `#${[red, green, blue].map((channel) => Math.round((channel + offset) * 255).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+}
+
+function renderColorPicker(prefix) {
+  const spectrum = $(`${prefix}-spectrum`);
+  const hueControl = $(`${prefix}-hue`);
+  const hsv = colorPickerStates.get(prefix) || { h: 0, s: 0, v: 1 };
+  const hue = Math.round(hsv.h);
+  spectrum.style.setProperty('--picker-hue', hue);
+  spectrum.style.setProperty('--picker-saturation', `${hsv.s * 100}%`);
+  spectrum.style.setProperty('--picker-value', `${(1 - hsv.v) * 100}%`);
+  spectrum.setAttribute('aria-valuetext', `Hue ${hue}, saturation ${Math.round(hsv.s * 100)}%, brightness ${Math.round(hsv.v * 100)}%`);
+  hueControl.value = String(hue);
+  hueControl.style.setProperty('--picker-hue', hue);
+}
+
+function setColorPicker(prefix, value, hsv = null) {
   const color = normalizeHexColor(value);
-  const ink = contrastText(color);
-  $('project-color').value = color;
-  $('project-color-hex').value = color;
+  colorPickerStates.set(prefix, hsv || hexToHsv(color));
+  $(prefix).value = color;
+  $(`${prefix}-hex`).value = color;
+  renderColorPicker(prefix);
+  return color;
+}
+
+function setProjectColor(value, hsv = null) {
+  const color = setColorPicker('project-color', value, hsv);
   $('project-color-sample').style.setProperty('--sample-color', color);
-  $('project-color-sample').style.setProperty('--sample-ink', ink);
   $('project-emoji-preview')?.style.setProperty('--project-color', color);
+}
+
+function setProjectTextColor(value, hsv = null) {
+  const color = setColorPicker('project-text-color', value, hsv);
+  $('project-color-sample').style.setProperty('--sample-ink', color);
+}
+
+function setBookmarkTextColor(value, hsv = null) {
+  const color = setColorPicker('bookmark-text-color', value, hsv);
+  $('bookmark-color-sample').style.setProperty('--sample-ink', color);
+}
+
+function setCalendarEventColor(value, hsv = null) {
+  const color = setColorPicker('calendar-event-color', value, hsv);
+  $('calendar-event-color-sample').style.setProperty('--sample-color', color);
+  $('calendar-event-color-sample').style.setProperty('--sample-ink', contrastText(color));
+}
+
+function setColorFromSpectrum(prefix, event, apply) {
+  const spectrum = $(`${prefix}-spectrum`);
+  const bounds = spectrum.getBoundingClientRect();
+  const saturation = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+  const value = 1 - Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+  const hsv = { ...(colorPickerStates.get(prefix) || { h: 0, s: 0, v: 1 }), s: saturation, v: value };
+  apply(hsvToHex(hsv), hsv);
+}
+
+function bindColorPicker(prefix, apply) {
+  $(prefix).addEventListener('input', (event) => apply(event.target.value));
+  $(`${prefix}-hex`).addEventListener('input', (event) => {
+    if (/^#[0-9a-f]{6}$/i.test(event.target.value.trim())) apply(event.target.value);
+  });
+  $(`${prefix}-hex`).addEventListener('blur', (event) => apply(event.target.value));
+  $(`${prefix}-hue`).addEventListener('input', (event) => {
+    const hsv = { ...(colorPickerStates.get(prefix) || { h: 0, s: 0, v: 1 }), h: Number(event.target.value) };
+    apply(hsvToHex(hsv), hsv);
+  });
+  const spectrum = $(`${prefix}-spectrum`);
+  spectrum.addEventListener('pointerdown', (event) => {
+    draggingColorPicker = prefix;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setColorFromSpectrum(prefix, event, apply);
+  });
+  spectrum.addEventListener('pointermove', (event) => {
+    if (draggingColorPicker === prefix) setColorFromSpectrum(prefix, event, apply);
+  });
+  spectrum.addEventListener('pointerup', (event) => {
+    if (draggingColorPicker === prefix) draggingColorPicker = '';
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  });
+  spectrum.addEventListener('pointercancel', () => { if (draggingColorPicker === prefix) draggingColorPicker = ''; });
+  spectrum.addEventListener('keydown', (event) => {
+    const step = event.shiftKey ? 0.1 : 0.02;
+    const hsv = { ...(colorPickerStates.get(prefix) || { h: 0, s: 0, v: 1 }) };
+    if (event.key === 'ArrowLeft') hsv.s -= step;
+    else if (event.key === 'ArrowRight') hsv.s += step;
+    else if (event.key === 'ArrowUp') hsv.v += step;
+    else if (event.key === 'ArrowDown') hsv.v -= step;
+    else return;
+    event.preventDefault();
+    hsv.s = Math.min(1, Math.max(0, hsv.s));
+    hsv.v = Math.min(1, Math.max(0, hsv.v));
+    apply(hsvToHex(hsv), hsv);
+  });
+  document.querySelectorAll(`[data-${prefix}]`).forEach((button) => button.addEventListener('click', () => apply(button.getAttribute(`data-${prefix}`))));
+  $(`${prefix}-eyedropper`).addEventListener('click', async () => {
+    if (!window.EyeDropper) return toast('The eyedropper is not available on this system');
+    try {
+      const result = await new window.EyeDropper().open();
+      if (result?.sRGBHex) apply(result.sRGBHex);
+    } catch (error) {
+      if (error?.name !== 'AbortError') toast('Could not sample that color');
+    }
+  });
 }
 
 function clampCrop() {
@@ -1155,7 +1404,6 @@ function switchProfile(profileId) {
   activeAgentSessionId = state.agentSessions.some((session) => session.id === state.session?.activeAgentSessionId) ? state.session.activeAgentSessionId : state.agentSessions[0]?.id;
   applySidebarWidth(profile.settings.sidebarWidth);
   applyAgentTrayHeight(profile.settings.agentTrayHeight);
-  lastDesktopUrl = '';
   closeNotifications();
   saveProfiles();
   closeProfileManager();
@@ -1163,6 +1411,7 @@ function switchProfile(profileId) {
   migrateCopiedDownloadsToLinks();
   configureActiveAgentProvider();
   configurePrivacyShield(profile.settings.privacyMode);
+  configureWebsiteMediaPermissions(profile);
   if (!profile.settings.walkthroughCompleted) setTimeout(() => startWalkthrough(false), 350);
   toast(`Switched to ${profile.name}`);
 }
@@ -1192,7 +1441,7 @@ function saveProfileEditor(event) {
     toast('Profile updated');
   } else {
     const id = `profile-${Date.now()}`;
-    const profile = { id, name, email, image, settings: { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', walkthroughCompleted: false, agentProvider: { id: 'codex', executable: 'codex', model: 'gpt-5.6-luna', effort: 'medium', usageMode: 'native', secretId: `${id}:codex` } }, workspace: { projects: [], globalBookmarks: [], agentSessions: [], notifications: [] } };
+    const profile = { id, name, email, image, settings: { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', websiteMicrophoneEnabled: true, websiteCameraEnabled: true, walkthroughCompleted: false, agentProvider: { id: 'codex', executable: 'codex', model: '', effort: 'medium', usageMode: 'native', secretId: `${id}:codex` } }, workspace: { projects: [], globalBookmarks: [], agentSessions: [], notifications: [], calendarEvents: [] } };
     profileStore.profiles.push(profile);
     saveProfiles();
     switchProfile(profile.id);
@@ -1278,16 +1527,36 @@ async function saveResourceEditor(event) {
   toast('Resource added to Library');
 }
 
-function captureCurrentPage() {
+async function captureCurrentPage() {
+  if (savePageBusy) return;
   const project = currentProject();
   const tab = currentTab();
   if (!project || !tab?.url) return toast('Open a website before saving it');
   const existing = project.resources.find((resource) => resource.type === 'url' && resource.url === tab.url);
   if (existing) return toast('This page is already in the Library');
-  project.resources.unshift({ id: `resource-${Date.now()}`, type: 'url', title: tab.title || tab.url, url: tab.url, createdAt: new Date().toISOString() });
-  save();
-  render();
-  toast('Current page saved to Library');
+  const button = $('save-page');
+  const startedAt = performance.now();
+  savePageBusy = true;
+  button.disabled = true;
+  button.classList.add('is-busy');
+  button.setAttribute('aria-busy', 'true');
+  const resource = { id: `resource-${Date.now()}`, type: 'url', title: tab.title || tab.url, url: tab.url, createdAt: new Date().toISOString() };
+  try {
+    project.resources.unshift(resource);
+    save();
+    render();
+    toast('Current page saved to Library');
+  } catch (error) {
+    project.resources = project.resources.filter((entry) => entry.id !== resource.id);
+    toast(`Page could not be saved: ${error.message}`);
+  } finally {
+    const remaining = Math.max(0, 1000 - (performance.now() - startedAt));
+    if (remaining) await new Promise((resolve) => setTimeout(resolve, remaining));
+    savePageBusy = false;
+    button.disabled = false;
+    button.classList.remove('is-busy');
+    button.removeAttribute('aria-busy');
+  }
 }
 
 function saveWebSelectionToLibrary(payload) {
@@ -1384,7 +1653,9 @@ function openTaskEditor(task = null) {
   $('task-modal-title').textContent = task ? 'Edit task' : 'Add task';
   $('task-title-input').value = task?.title || '';
   $('task-due-input').value = localDateTimeValue(task?.dueAt);
+  $('task-reminder-input').value = localDateTimeValue(task?.reminderAt);
   $('task-priority-input').value = task?.priority || 'medium';
+  $('task-note-input').value = task?.note || '';
   $('delete-task').classList.toggle('hidden', !task);
   $('task-modal').classList.remove('hidden');
   requestAnimationFrame(() => { $('task-title-input').focus(); syncDesktopBounds(); });
@@ -1403,17 +1674,36 @@ function saveTaskEditor(event) {
   const title = $('task-title-input').value.trim();
   const dueInput = $('task-due-input').value;
   const dueAt = dueInput ? new Date(dueInput).toISOString() : '';
+  const reminderAt = $('task-reminder-input').value ? new Date($('task-reminder-input').value).toISOString() : '';
   const priority = $('task-priority-input').value;
+  const note = $('task-note-input').value.trim();
   if (!title) return;
+  if (reminderAt && dueAt && new Date(reminderAt) > new Date(dueAt)) return toast('Set the reminder before the task is due');
+  let savedTask = null;
   if (editingTaskId) {
     const task = project.tasks.find((item) => item.id === editingTaskId);
     if (!task) return;
+    if (task.calendarEventId && !dueAt) return toast('Calendar-linked tasks must keep a due date and time');
     if (task.dueAt !== dueAt) task.notifiedAt = '';
+    if (task.reminderAt !== reminderAt) task.remindedAt = '';
     task.title = title;
     task.dueAt = dueAt;
+    task.reminderAt = reminderAt;
     task.priority = priority;
+    task.note = note;
+    savedTask = task;
   } else {
-    project.tasks.unshift({ id: `task-${Date.now()}`, title, dueAt, due: '', priority, done: false, notifiedAt: '' });
+    savedTask = { id: `task-${Date.now()}`, title, dueAt, reminderAt, due: '', priority, note, done: false, notifiedAt: '', remindedAt: '', calendarEventId: '' };
+    project.tasks.unshift(savedTask);
+  }
+  const linkedEvent = savedTask?.calendarEventId ? state.calendarEvents.find((entry) => entry.id === savedTask.calendarEventId) : null;
+  if (linkedEvent) {
+    linkedEvent.title = title;
+    linkedEvent.startAt = dueAt;
+    linkedEvent.reminderAt = reminderAt;
+    linkedEvent.priority = priority;
+    linkedEvent.note = note;
+    linkedEvent.remindedAt = '';
   }
   save();
   closeTaskEditor();
@@ -1426,6 +1716,7 @@ function deleteTask() {
   const project = currentProject();
   const task = project?.tasks.find((item) => item.id === editingTaskId);
   if (!task || !window.confirm(`Delete “${task.title}”?`)) return;
+  if (task.calendarEventId) state.calendarEvents = state.calendarEvents.filter((event) => event.id !== task.calendarEventId);
   project.tasks = project.tasks.filter((item) => item.id !== task.id);
   save();
   closeTaskEditor();
@@ -1456,6 +1747,7 @@ function playNotificationChime() {
 function checkDueTasks() {
   const now = Date.now();
   let activeDue = false;
+  let activeDueCount = 0;
   let changed = false;
   profileStore.profiles.forEach((profile) => {
     const taskCountBeforeNormalization = (profile.workspace?.projects || []).reduce((total, project) => total + (project.tasks || []).length, 0);
@@ -1469,37 +1761,305 @@ function checkDueTasks() {
         changed = true;
       }
       project.tasks.forEach((task) => {
+      const reminderTime = task.reminderAt ? new Date(task.reminderAt).getTime() : NaN;
+      if (!task.calendarEventId && !task.done && !task.remindedAt && Number.isFinite(reminderTime) && reminderTime <= now) {
+        task.remindedAt = new Date().toISOString();
+        workspace.notifications.unshift({ id: `notification-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, projectId: project.id, taskId: task.id, title: `[${project.name}] ${task.title}`, message: `Task reminder${task.dueAt ? ` · Due ${new Date(task.dueAt).toLocaleString()}` : ''}`, createdAt: new Date().toISOString(), read: false });
+        changed = true;
+        if (profile.id === profileStore.activeProfileId) { activeDue = true; activeDueCount += 1; }
+      }
       const dueTime = task.dueAt ? new Date(task.dueAt).getTime() : NaN;
       if (task.done || task.notifiedAt || !Number.isFinite(dueTime) || dueTime > now) return;
       task.notifiedAt = new Date().toISOString();
       workspace.notifications.unshift({ id: `notification-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, projectId: project.id, taskId: task.id, title: task.title, message: `Due in ${project.name}`, createdAt: new Date().toISOString(), read: false });
       changed = true;
-      if (profile.id === profileStore.activeProfileId) activeDue = true;
+      if (profile.id === profileStore.activeProfileId) { activeDue = true; activeDueCount += 1; }
       });
+    });
+    workspace.calendarEvents.forEach((event) => {
+      const reminderTime = event.reminderAt ? new Date(event.reminderAt).getTime() : NaN;
+      if (event.remindedAt || !Number.isFinite(reminderTime) || reminderTime > now) return;
+      const project = workspace.projects.find((entry) => entry.id === event.projectId);
+      event.remindedAt = new Date().toISOString();
+      workspace.notifications.unshift({ id: `notification-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, projectId: event.projectId || '', eventId: event.id, title: project ? `[${project.name}] ${event.title}` : event.title, message: `Event reminder · ${new Date(event.startAt).toLocaleString()}`, createdAt: new Date().toISOString(), read: false });
+      changed = true;
+      if (profile.id === profileStore.activeProfileId) { activeDue = true; activeDueCount += 1; }
     });
   });
   if (changed) saveProfiles();
-  if (activeDue) playNotificationChime();
+  if (activeDue) {
+    playNotificationChime();
+    toast(`${activeDueCount} new reminder${activeDueCount === 1 ? '' : 's'}`);
+  }
   renderNotificationBadge();
   if (changed && activeView === 'tasks') render();
 }
 
+function renderNotificationPopover() {
+  notificationSnapshot = (state.notifications || []).filter((notification) => !notification.read);
+  $('notification-unread-label').textContent = notificationSnapshot.length ? `${notificationSnapshot.length} unread` : 'No unread notifications';
+  $('clear-notifications').disabled = notificationSnapshot.length === 0;
+  $('notification-list').innerHTML = notificationSnapshot.length ? notificationSnapshot.map((notification) => `<button type="button" data-notification-id="${notification.id}"><span>✓</span><span><strong>${escapeHtml(notification.title)}</strong><small>${escapeHtml(notification.message)}</small></span></button>`).join('') : '<div class="empty-notifications">No unread notifications.</div>';
+}
+
 function openNotifications() {
   closeDownloads();
-  notificationSnapshot = (state.notifications || []).filter((notification) => !notification.read);
-  $('notification-list').innerHTML = notificationSnapshot.length ? notificationSnapshot.map((notification) => `<button type="button" data-notification-id="${notification.id}"><span>✓</span><span><strong>${escapeHtml(notification.title)}</strong><small>${escapeHtml(notification.message)}</small></span></button>`).join('') : '<div class="empty-notifications">No unread notifications.</div>';
-  notificationSnapshot.forEach((notification) => { notification.read = true; });
-  save();
-  renderNotificationBadge();
+  renderNotificationPopover();
   $('notification-popover').classList.remove('hidden');
   requestAnimationFrame(syncDesktopBounds);
 }
 
+function markNotificationRead(notificationId) {
+  const notification = state.notifications.find((item) => item.id === notificationId);
+  if (!notification) return null;
+  notification.read = true;
+  save();
+  renderNotificationBadge();
+  renderNotificationPopover();
+  return notification;
+}
+
+function markAllNotificationsRead() {
+  state.notifications.forEach((notification) => { notification.read = true; });
+  save();
+  renderNotificationBadge();
+  renderNotificationPopover();
+}
+
 function closeNotifications() { $('notification-popover').classList.add('hidden'); notificationSnapshot = []; requestAnimationFrame(syncDesktopBounds); }
 
+function calendarDateKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function linkedTaskForCalendarEvent(event) {
+  if (!event) return null;
+  for (const project of state.projects) {
+    const task = project.tasks.find((entry) => entry.id === event.taskId || entry.calendarEventId === event.id);
+    if (task) return { project, task };
+  }
+  return null;
+}
+
+function removeLinkedCalendarTask(event) {
+  if (!event) return;
+  state.projects.forEach((project) => {
+    project.tasks = project.tasks.filter((task) => task.id !== event.taskId && task.calendarEventId !== event.id);
+  });
+  event.taskId = '';
+}
+
+function syncCalendarEventTask(event, previousProjectId = '') {
+  if (!event) return;
+  if (previousProjectId && previousProjectId !== event.projectId) removeLinkedCalendarTask(event);
+  const project = state.projects.find((entry) => entry.id === event.projectId);
+  if (!project) {
+    removeLinkedCalendarTask(event);
+    event.projectId = '';
+    return;
+  }
+  let linked = linkedTaskForCalendarEvent(event);
+  if (linked && linked.project.id !== project.id) {
+    removeLinkedCalendarTask(event);
+    linked = null;
+  }
+  const task = linked?.task || { id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, due: '', priority: 'medium', note: '', reminderAt: '', remindedAt: '', done: false, completedAt: '', notifiedAt: '', calendarEventId: event.id };
+  if (task.dueAt !== event.startAt) task.notifiedAt = '';
+  if (task.reminderAt !== event.reminderAt) task.remindedAt = '';
+  Object.assign(task, { title: event.title, dueAt: event.startAt, reminderAt: event.reminderAt || '', priority: event.priority || 'medium', note: event.note || '', calendarEventId: event.id });
+  if (!linked) project.tasks.unshift(task);
+  event.taskId = task.id;
+}
+
+function renderCalendar() {
+  const monthStart = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(1 - monthStart.getDay());
+  const todayKey = calendarDateKey(new Date());
+  const itemsByDay = new Map();
+  let visibleItemCount = 0;
+  state.calendarEvents.forEach((event) => {
+    const start = new Date(event.startAt);
+    if (Number.isNaN(start.getTime())) return;
+    const key = calendarDateKey(start);
+    const entries = itemsByDay.get(key) || [];
+    entries.push({ kind: 'event', event, project: state.projects.find((project) => project.id === event.projectId), start });
+    itemsByDay.set(key, entries);
+    if (start.getFullYear() === monthStart.getFullYear() && start.getMonth() === monthStart.getMonth()) visibleItemCount += 1;
+  });
+  state.projects.forEach((project) => project.tasks.forEach((task) => {
+    if (task.calendarEventId) return;
+    if (!task.dueAt) return;
+    const due = new Date(task.dueAt);
+    if (Number.isNaN(due.getTime())) return;
+    const key = calendarDateKey(due);
+    const entries = itemsByDay.get(key) || [];
+    entries.push({ kind: 'task', project, task, start: due });
+    itemsByDay.set(key, entries);
+    if (due.getFullYear() === monthStart.getFullYear() && due.getMonth() === monthStart.getMonth()) visibleItemCount += 1;
+  }));
+  itemsByDay.forEach((entries) => entries.sort((a, b) => a.start - b.start));
+  $('calendar-month-label').textContent = monthStart.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  $('calendar-task-summary').textContent = `${visibleItemCount} item${visibleItemCount === 1 ? '' : 's'} scheduled`;
+  $('calendar-grid').innerHTML = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const key = calendarDateKey(date);
+    const entries = itemsByDay.get(key) || [];
+    const events = entries.slice(0, 3).map((entry) => {
+      const time = entry.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (entry.kind === 'event') {
+        const linkedTask = linkedTaskForCalendarEvent(entry.event)?.task;
+        const color = normalizeHexColor(entry.event.color);
+        const label = entry.project ? `[${entry.project.name}] ${entry.event.title}` : entry.event.title;
+        return `<button class="calendar-task calendar-event ${linkedTask?.done ? 'completed' : ''}" type="button" draggable="true" data-calendar-event="${entry.event.id}" style="--calendar-project:${color}" title="${escapeHtml(`${label} · ${time}`)}"><span>${escapeHtml(time)}</span><strong>${escapeHtml(label)}</strong></button>`;
+      }
+      const color = normalizeHexColor(entry.project.color);
+      const label = `[${entry.project.name}] ${entry.task.title}`;
+      return `<button class="calendar-task ${entry.task.done ? 'completed' : ''}" type="button" data-calendar-project="${entry.project.id}" data-calendar-task="${entry.task.id}" style="--calendar-project:${color}" title="${escapeHtml(`${label} · ${time}`)}"><span>${escapeHtml(time)}</span><strong>${escapeHtml(label)}</strong></button>`;
+    }).join('');
+    const overflow = entries.length > 3 ? `<span class="calendar-more">+${entries.length - 3} more</span>` : '';
+    return `<article class="calendar-day ${date.getMonth() === monthStart.getMonth() ? '' : 'outside-month'} ${key === todayKey ? 'today' : ''}" data-calendar-date="${key}"><div class="calendar-day-number"><span>${date.getDate()}</span>${key === todayKey ? '<small>Today</small>' : ''}</div><div class="calendar-day-events">${events}${overflow}</div></article>`;
+  }).join('');
+}
+
+function openCalendar() {
+  closeDownloads();
+  closeNotifications();
+  calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  renderCalendar();
+  $('calendar-modal').classList.remove('hidden');
+  requestAnimationFrame(syncDesktopBounds);
+}
+
+function closeCalendar() {
+  $('calendar-modal').classList.add('hidden');
+  requestAnimationFrame(syncDesktopBounds);
+}
+
+function moveCalendarMonth(offset) {
+  calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + offset, 1);
+  renderCalendar();
+}
+
+function defaultCalendarEventStart(dateKey) {
+  const [year, month, day] = String(dateKey || calendarDateKey(new Date())).split('-').map(Number);
+  const value = new Date(year, month - 1, day, 9, 0, 0, 0);
+  if (calendarDateKey(value) === calendarDateKey(new Date()) && value.getTime() < Date.now()) {
+    value.setHours(new Date().getHours() + 1, 0, 0, 0);
+  }
+  return value;
+}
+
+function openCalendarEventEditor(event = null, dateKey = '') {
+  editingCalendarEventId = event?.id || null;
+  $('calendar-event-modal-title').textContent = event ? 'Edit event' : 'Add event';
+  $('calendar-event-name').value = event?.title || '';
+  $('calendar-event-project').innerHTML = `<option value="">No project</option>${state.projects.map((project) => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join('')}`;
+  $('calendar-event-project').value = event?.projectId || '';
+  $('calendar-event-start').value = localDateTimeValue(event?.startAt || defaultCalendarEventStart(dateKey).toISOString());
+  $('calendar-event-reminder').value = localDateTimeValue(event?.reminderAt);
+  $('calendar-event-priority').value = event?.priority || 'medium';
+  $('calendar-event-note').value = event?.note || '';
+  setCalendarEventColor(event?.color || neonProjectPalette[state.calendarEvents.length % neonProjectPalette.length]);
+  $('calendar-event-color-sample').textContent = event?.title || 'Event preview';
+  $('delete-calendar-event').classList.toggle('hidden', !event);
+  $('calendar-event-modal').classList.remove('hidden');
+  requestAnimationFrame(() => { $('calendar-event-name').focus(); syncDesktopBounds(); });
+}
+
+function closeCalendarEventEditor() {
+  editingCalendarEventId = null;
+  $('calendar-event-modal').classList.add('hidden');
+  requestAnimationFrame(syncDesktopBounds);
+}
+
+function saveCalendarEvent(event) {
+  event.preventDefault();
+  const title = $('calendar-event-name').value.trim();
+  const startAt = $('calendar-event-start').value ? new Date($('calendar-event-start').value).toISOString() : '';
+  const reminderAt = $('calendar-event-reminder').value ? new Date($('calendar-event-reminder').value).toISOString() : '';
+  if (!title) return $('calendar-event-name').focus();
+  if (!startAt) return toast('Choose an event date and time');
+  if (reminderAt && new Date(reminderAt) > new Date(startAt)) return toast('Set the reminder before the event begins');
+  const isEditing = Boolean(editingCalendarEventId);
+  let item = state.calendarEvents.find((entry) => entry.id === editingCalendarEventId);
+  const previousProjectId = item?.projectId || '';
+  const previousReminderAt = item?.reminderAt || '';
+  if (!item) {
+    item = { id: `calendar-event-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, taskId: '', remindedAt: '' };
+    state.calendarEvents.push(item);
+  }
+  Object.assign(item, { title, projectId: $('calendar-event-project').value, startAt, reminderAt, priority: $('calendar-event-priority').value, color: normalizeHexColor($('calendar-event-color-hex').value), note: $('calendar-event-note').value.trim() });
+  if (previousReminderAt !== reminderAt) item.remindedAt = '';
+  syncCalendarEventTask(item, previousProjectId);
+  save();
+  closeCalendarEventEditor();
+  render();
+  renderCalendar();
+  checkDueTasks();
+  toast(isEditing ? 'Event updated' : 'Event added');
+}
+
+function deleteCalendarEvent() {
+  const event = state.calendarEvents.find((entry) => entry.id === editingCalendarEventId);
+  if (!event || !window.confirm(`Delete “${event.title}”?`)) return;
+  removeLinkedCalendarTask(event);
+  state.calendarEvents = state.calendarEvents.filter((entry) => entry.id !== event.id);
+  save();
+  closeCalendarEventEditor();
+  render();
+  renderCalendar();
+  toast('Event deleted');
+}
+
+function moveCalendarEventToDate(eventId, dateKey) {
+  const event = state.calendarEvents.find((entry) => entry.id === eventId);
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const previous = new Date(event?.startAt);
+  if (!event || !year || !month || !day || Number.isNaN(previous.getTime())) return;
+  const next = new Date(year, month - 1, day, previous.getHours(), previous.getMinutes(), previous.getSeconds(), previous.getMilliseconds());
+  const shift = next.getTime() - previous.getTime();
+  event.startAt = next.toISOString();
+  if (event.reminderAt) event.reminderAt = new Date(new Date(event.reminderAt).getTime() + shift).toISOString();
+  event.remindedAt = '';
+  syncCalendarEventTask(event, event.projectId);
+  save();
+  render();
+  renderCalendar();
+  toast(`Moved ${event.title} to ${next.toLocaleDateString()}`);
+}
+
+function openCalendarTask(projectId, taskId) {
+  const project = state.projects.find((entry) => entry.id === projectId);
+  const task = project?.tasks.find((entry) => entry.id === taskId);
+  if (!project || !task) return;
+  activeProjectId = project.id;
+  activeTabId = project.tabs[0]?.id;
+  activeView = 'tasks';
+  closeCalendar();
+  save();
+  render();
+  openTaskEditor(task);
+}
+
 function openNotification(notificationId) {
-  const notification = notificationSnapshot.find((item) => item.id === notificationId) || state.notifications.find((item) => item.id === notificationId);
+  const notification = markNotificationRead(notificationId);
   if (!notification) return;
+  if (notification.eventId) {
+    const event = state.calendarEvents.find((entry) => entry.id === notification.eventId);
+    if (event) {
+      const start = new Date(event.startAt);
+      calendarCursor = new Date(start.getFullYear(), start.getMonth(), 1);
+      closeNotifications();
+      renderCalendar();
+      $('calendar-modal').classList.remove('hidden');
+      openCalendarEventEditor(event);
+      return;
+    }
+  }
   if (state.projects.some((project) => project.id === notification.projectId)) {
     activeProjectId = notification.projectId;
     activeTabId = currentProject()?.tabs[0]?.id;
@@ -1539,7 +2099,9 @@ function openProjectEditor(item = null) {
   $('project-modal-title').textContent = item ? 'Edit project' : 'Create project';
   $('project-name').value = item?.name || '';
   $('project-status').value = item?.status || 'Active P3';
-  setProjectColor(item?.color || neonProjectPalette[state.projects.length % neonProjectPalette.length]);
+  const color = item?.color || neonProjectPalette[state.projects.length % neonProjectPalette.length];
+  setProjectColor(color);
+  setProjectTextColor(item?.textColor || contrastText(color));
   $('project-image-input').value = '';
   $('project-emoji-search').value = '';
   editingProjectEmoji = item?.emoji || '🚀';
@@ -1563,6 +2125,7 @@ function saveProjectEditor(event) {
   const name = $('project-name').value.trim();
   const status = $('project-status').value.trim();
   const color = normalizeHexColor($('project-color-hex').value);
+  const textColor = normalizeHexColor($('project-text-color-hex').value, contrastText(color));
   if (!name) { $('project-name').focus(); return toast('Enter a project name'); }
   if (!status) return toast('Choose a project status');
   const image = croppedProjectImage();
@@ -1572,12 +2135,13 @@ function saveProjectEditor(event) {
     item.name = name;
     item.status = status;
     item.color = color;
+    item.textColor = textColor;
     item.iconMode = projectIconMode;
     item.emoji = editingProjectEmoji;
     if (image) item.image = image;
     toast('Project updated');
   } else {
-    const item = { id: `project-${Date.now()}`, name, image, iconMode: projectIconMode, emoji: editingProjectEmoji, color, status, description: 'A project workspace.', tabs: [], bookmarks: state.globalBookmarks.map((bookmark) => ({ ...bookmark, id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })), resources: [], downloads: [], notes: [], tasks: [] };
+    const item = { id: `project-${Date.now()}`, name, image, iconMode: projectIconMode, emoji: editingProjectEmoji, color, textColor, status, description: 'A project workspace.', tabs: [], bookmarks: state.globalBookmarks.map((bookmark) => ({ ...bookmark, id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })), resources: [], downloads: [], notes: [], tasks: [] };
     state.projects.unshift(item);
     activeProjectId = item.id;
     activeTabId = undefined;
@@ -1593,6 +2157,11 @@ function deleteCurrentProject() {
   const item = state.projects.find((project) => project.id === editingProjectId);
   if (!item || !window.confirm(`Delete “${item.name}” and all of its saved project context? This cannot be undone.`)) return;
   state.projects = state.projects.filter((project) => project.id !== item.id);
+  state.calendarEvents.forEach((event) => {
+    if (event.projectId !== item.id) return;
+    event.projectId = '';
+    event.taskId = '';
+  });
   activeProjectId = state.projects[0]?.id;
   activeTabId = state.projects[0]?.tabs[0]?.id;
   save();
@@ -1631,13 +2200,6 @@ function closeEmojiPicker() { emojiTabId = null; $('emoji-picker').classList.add
 function editTabIcon(tabId, anchor) { openEmojiPicker(tabId, anchor); }
 function closeTab(tabId) { const item = currentProject(); item.tabs = item.tabs.filter((tab) => tab.id !== tabId); activeTabId = item.tabs[0]?.id; save(); render(); toast('Tab closed'); }
 function normalizeAddress(value) { const input = value.trim(); if (!input) return ''; if (/^https?:\/\//i.test(input)) return input; if (/^localhost(?::\d+)?(?:\/|$)/i.test(input) || /^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:\/|$)/.test(input)) return `http://${input}`; if (/^[^\s]+\.[^\s]+/.test(input)) return `https://${input}`; return `https://www.google.com/search?q=${encodeURIComponent(input)}`; }
-function isTransientMicrosoftAuthenticationUrl(value) {
-  try {
-    const url = new URL(String(value));
-    return ['login.microsoft.com', 'login.microsoftonline.com'].includes(url.hostname.toLowerCase())
-      && (/\/bridge\/fido\/?$/i.test(url.pathname) || /\/fido\//i.test(url.pathname));
-  } catch { return false; }
-}
 function openUrlInCurrentTab(value, message = 'Opening website') {
   const item = currentProject();
   const url = normalizeAddress(String(value || ''));
@@ -1672,14 +2234,16 @@ function addTab() {
   requestAnimationFrame(() => { $('address').value = defaultUrl; if (!defaultUrl) $('address').focus(); });
 }
 
-function openExternalUrlInNewTab(value) {
-  const item = currentProject();
+function openExternalUrlInNewTab(value, context = null) {
+  if (context?.profileId && context.profileId !== activeProfile().id) return;
+  const item = context?.projectId ? state.projects.find((project) => project.id === context.projectId) : currentProject();
   const url = normalizeAddress(String(value || ''));
   if (!item || !url) return;
   let title = 'New tab';
   try { title = new URL(url).hostname.replace(/^www\./, '') || title; } catch {}
   const tab = { id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title, icon: '🌐', iconMode: 'emoji', favicon: '', url };
   item.tabs.push(tab);
+  activeProjectId = item.id;
   activeTabId = tab.id;
   activeView = 'browser';
   save();
@@ -1687,12 +2251,9 @@ function openExternalUrlInNewTab(value) {
   toast('Opened link in a new tab');
 }
 
-function setBookmarkColor(value) {
-  const color = normalizeHexColor(value);
-  $('bookmark-color').value = color;
-  $('bookmark-color-hex').value = color;
+function setBookmarkColor(value, hsv = null) {
+  const color = setColorPicker('bookmark-color', value, hsv);
   $('bookmark-color-sample').style.setProperty('--sample-color', color);
-  $('bookmark-color-sample').style.setProperty('--sample-ink', contrastText(color));
 }
 
 function openBookmarkEditor(bookmark = null) {
@@ -1703,7 +2264,9 @@ function openBookmarkEditor(bookmark = null) {
   $('bookmark-url').value = bookmark?.url || currentTab()?.url || '';
   $('bookmark-apply-all').checked = false;
   $('bookmark-scope-state').textContent = 'This project only';
-  setBookmarkColor(bookmark?.color || neonProjectPalette[(currentProject().bookmarks.length + 1) % neonProjectPalette.length]);
+  const color = bookmark?.color || neonProjectPalette[(currentProject().bookmarks.length + 1) % neonProjectPalette.length];
+  setBookmarkColor(color);
+  setBookmarkTextColor(bookmark?.textColor || contrastText(color));
   closeBookmarkManager();
   $('bookmark-modal').classList.remove('hidden');
   requestAnimationFrame(() => { syncDesktopBounds(); $('bookmark-title').focus(); });
@@ -1722,6 +2285,7 @@ function saveBookmarkEditor(event) {
   const title = $('bookmark-title').value.trim();
   const url = normalizeAddress($('bookmark-url').value);
   const color = normalizeHexColor($('bookmark-color-hex').value);
+  const textColor = normalizeHexColor($('bookmark-text-color-hex').value, contrastText(color));
   const applyToAllProjects = $('bookmark-apply-all').checked;
   if (!title) return $('bookmark-title').focus();
   if (!url) return $('bookmark-url').focus();
@@ -1729,18 +2293,18 @@ function saveBookmarkEditor(event) {
   if (applyToAllProjects) {
     const sharedId = existing?.sharedId || `shared-bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const globalBookmark = state.globalBookmarks.find((bookmark) => bookmark.sharedId === sharedId);
-    if (globalBookmark) Object.assign(globalBookmark, { title, url, color, sharedId });
-    else state.globalBookmarks.push({ sharedId, title, url, color });
+    if (globalBookmark) Object.assign(globalBookmark, { title, url, color, textColor, sharedId });
+    else state.globalBookmarks.push({ sharedId, title, url, color, textColor });
     state.projects.forEach((targetProject) => {
       targetProject.bookmarks ||= [];
       const targetBookmark = targetProject.id === project.id
         ? existing
         : targetProject.bookmarks.find((bookmark) => bookmark.sharedId === sharedId);
-      if (targetBookmark) Object.assign(targetBookmark, { title, url, color, sharedId });
-      else targetProject.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, sharedId, title, url, color });
+      if (targetBookmark) Object.assign(targetBookmark, { title, url, color, textColor, sharedId });
+      else targetProject.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, sharedId, title, url, color, textColor });
     });
-  } else if (existing) Object.assign(existing, { title, url, color });
-  else project.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title, url, color });
+  } else if (existing) Object.assign(existing, { title, url, color, textColor });
+  else project.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title, url, color, textColor });
   save();
   closeBookmarkEditor();
   renderBookmarks(project);
@@ -1830,12 +2394,22 @@ function applyNoteCommand(command, value = null) {
 
 function createAgentSession(scopeProjectId = null) {
   if (conversationMode.active) stopConversationMode();
-  const session = { id: `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, threadId: '', providerId: activeProfile().settings.agentProvider.id, title: 'New conversation', titleEdited: false, scopeProjectId: scopeProjectId || null, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
+  const session = { id: `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, threadId: '', providerId: activeProfile().settings.agentProvider.id, toolCatalogVersion: Number(agentRuntimeStatus.toolCatalogVersion) || 0, title: 'New conversation', titleEdited: false, scopeProjectId: scopeProjectId || null, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
   state.agentSessions.push(session);
   activeAgentSessionId = session.id;
   save();
   renderAgentWorkspace();
   $('agent-input').focus();
+  return session;
+}
+
+function createTrayAgentSession() {
+  const project = currentProject();
+  if (!project) return null;
+  const session = createAgentSession(project.id);
+  $('agent-tray-input').value = '';
+  requestAnimationFrame(() => $('agent-tray-input').focus());
+  toast(`New ${project.name} conversation started`);
   return session;
 }
 
@@ -1868,7 +2442,7 @@ function ensureTrayAgentSession() {
   if (!project) return null;
   let session = trayAgentSession(project.id);
   if (!session) {
-    session = { id: `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, threadId: '', providerId: activeProfile().settings.agentProvider.id, title: 'New conversation', titleEdited: false, scopeProjectId: project.id, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
+    session = { id: `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, threadId: '', providerId: activeProfile().settings.agentProvider.id, toolCatalogVersion: Number(agentRuntimeStatus.toolCatalogVersion) || 0, title: 'New conversation', titleEdited: false, scopeProjectId: project.id, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
     state.agentSessions.push(session);
   }
   activeAgentSessionId = session.id;
@@ -1895,10 +2469,13 @@ function agentContextSnapshot(session) {
     scope: session.scopeProjectId ? { type: 'project', projectId: session.scopeProjectId, projectName: sessionScopeName(session) } : { type: 'all-projects' },
     activeProjectId,
     activeTabId,
+    calendarEvents: state.calendarEvents
+      .filter((event) => !session.scopeProjectId || event.projectId === session.scopeProjectId)
+      .map(({ id, title, projectId, taskId, startAt, reminderAt, priority, color, note }) => ({ id, title, projectId: projectId || null, taskId: taskId || null, startAt, reminderAt, priority, color, note })),
     projects: allowed.map((project) => ({
       id: project.id, name: project.name, status: project.status, description: project.description,
       tabs: project.tabs.map(({ id, title, url, icon, iconMode }) => ({ id, title, url, icon, iconMode })),
-      tasks: project.tasks.map(({ id, title, priority, dueAt, done, completedAt }) => ({ id, title, priority, dueAt, done, completedAt })),
+      tasks: project.tasks.map(({ id, title, priority, dueAt, reminderAt, note, done, completedAt }) => ({ id, title, priority, dueAt, reminderAt, note, done, completedAt })),
       notes: project.notes.map(({ id, title, html, updatedAt }) => ({ id, title, text: new DOMParser().parseFromString(html || '', 'text/html').body.textContent || '', updatedAt })),
       resources: project.resources.map(({ id, type, title, url, text, fileName, mimeType, createdAt }) => ({ id, type, title, url, text: type === 'text' ? text : undefined, fileName, mimeType, createdAt }))
     }))
@@ -1913,14 +2490,38 @@ function findAgentSessionByThread(threadId) {
   return null;
 }
 
+function cancelAgentSpeech({ stopEngine = true } = {}) {
+  const hadPendingRequest = ttsRequestPending;
+  ttsRequestPending = false;
+  ttsPlaybackGeneration += 1;
+  if (conversationTtsFinish) {
+    const finish = conversationTtsFinish;
+    conversationTtsFinish = null;
+    finish();
+  }
+  if (activeTtsAudio) {
+    activeTtsAudio.pause();
+    activeTtsAudio.removeAttribute('src');
+    activeTtsAudio.load();
+    activeTtsAudio = null;
+  }
+  if (activeTtsUrl) {
+    URL.revokeObjectURL(activeTtsUrl);
+    activeTtsUrl = '';
+  }
+  if (stopEngine && hadPendingRequest && isElectron) window.atlasBrowser.cancelSpeech().catch(() => {});
+}
+
 async function speakAgentText(text, force = false) {
-  if ((!force && !activeProfile().settings.autoSpeak) || !text || !isElectron) return;
-  if (activeTtsAudio) { activeTtsAudio.pause(); activeTtsAudio = null; }
-  if (conversationTtsFinish) { conversationTtsFinish(); conversationTtsFinish = null; }
-  if (activeTtsUrl) { URL.revokeObjectURL(activeTtsUrl); activeTtsUrl = ''; }
+  if ((!force && !activeProfile().settings.autoSpeak) || !text || !isElectron) return false;
+  cancelAgentSpeech({ stopEngine: true });
+  const generation = ttsPlaybackGeneration;
+  ttsRequestPending = true;
   $('agent-activity').textContent = 'Kokoro is generating voice locally…';
   try {
     const result = await window.atlasBrowser.synthesizeSpeech({ text, voice: activeProfile().settings.ttsVoice || 'af_heart', speed: Number(activeProfile().settings.ttsSpeed) || 1 });
+    if (generation !== ttsPlaybackGeneration) return false;
+    ttsRequestPending = false;
     const binary = atob(result.audioBase64);
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
@@ -1932,13 +2533,20 @@ async function speakAgentText(text, force = false) {
       activeTtsAudio.onerror = () => reject(new Error('The generated voice could not be played.'));
       activeTtsAudio.play().catch(reject);
     });
-  } catch (error) { toast(`Local voice failed: ${error.message}`); }
+    return generation === ttsPlaybackGeneration;
+  } catch (error) {
+    if (generation === ttsPlaybackGeneration) toast(`Local voice failed: ${error.message}`);
+    return false;
+  }
   finally {
-    conversationTtsFinish = null;
-    if (activeTtsUrl) URL.revokeObjectURL(activeTtsUrl);
-    activeTtsUrl = '';
-    activeTtsAudio = null;
-    $('agent-activity').textContent = '';
+    if (generation === ttsPlaybackGeneration) {
+      ttsRequestPending = false;
+      conversationTtsFinish = null;
+      if (activeTtsUrl) URL.revokeObjectURL(activeTtsUrl);
+      activeTtsUrl = '';
+      activeTtsAudio = null;
+      $('agent-activity').textContent = '';
+    }
   }
 }
 
@@ -1958,6 +2566,7 @@ async function sendAgentMessage(inputId = 'agent-input', suppliedText = '') {
   const text = (suppliedText || input.value).trim();
   let session = inputId === 'agent-tray-input' ? ensureTrayAgentSession() : activeAgentSession();
   if (!text || !session || session.busy || !isElectron) return;
+  if (!conversationMode.active && conversationMode.suppressedSessionId === session.id) conversationMode.suppressedSessionId = '';
   const providerId = activeProfile().settings.agentProvider.id;
   if (session.providerId !== providerId) {
     const replacement = createAgentSession(inputId === 'agent-tray-input' ? activeProjectId : session.scopeProjectId);
@@ -1975,12 +2584,23 @@ async function sendAgentMessage(inputId = 'agent-input', suppliedText = '') {
   save();
   renderAgentWorkspace();
   try {
+    const activeCatalogVersion = Number(agentRuntimeStatus.toolCatalogVersion) || 0;
+    const needsCatalogUpgrade = providerId === 'codex' && activeCatalogVersion > 0 && session.toolCatalogVersion !== activeCatalogVersion;
+    const bridgeHistory = needsCatalogUpgrade && Boolean(session.threadId);
+    if (needsCatalogUpgrade) {
+      session.threadId = '';
+      session.toolCatalogVersion = activeCatalogVersion;
+      session.tokenUsage = null;
+      save();
+    }
     if (!session.threadId) {
       const thread = await window.atlasBrowser.createAgentThread();
       session.threadId = thread.id;
+      session.toolCatalogVersion = activeCatalogVersion;
       save();
     }
-    await window.atlasBrowser.sendAgentTurn({ threadId: session.threadId, text, effort: activeProfile().settings.reasoningEffort || 'medium', context: agentContextSnapshot(session), history: session.messages.slice(0, -1).slice(-30).map(({ role, text: messageText }) => ({ role, text: messageText })) });
+    const history = bridgeHistory ? session.messages.slice(0, -1).slice(-30).map(({ role, text: messageText }) => ({ role, text: messageText })) : [];
+    await window.atlasBrowser.sendAgentTurn({ threadId: session.threadId, text, effort: activeProfile().settings.reasoningEffort || 'medium', context: agentContextSnapshot(session), history });
   } catch (error) {
     session.busy = false;
     session.messages.push({ id: `message-${Date.now()}`, role: 'assistant', text: `I could not start that request: ${error.message}`, createdAt: new Date().toISOString() });
@@ -2018,27 +2638,27 @@ async function executeAtlasAgentTool(request) {
   if (request.tool === 'atlas_get_context') return agentContextSnapshot(session);
   if (request.tool === 'atlas_read_current_page') {
     if (session.scopeProjectId && activeProjectId !== session.scopeProjectId) throw new Error(`The visible page is outside the session scope. Open a tab in ${sessionScopeName(session)} first.`);
-    return window.atlasBrowser.readCurrentPage(args.maxChars);
+    return window.atlasBrowser.readCurrentPage({ context: browserContextFor(), maxChars: args.maxChars });
   }
   if (request.tool === 'atlas_browser_inspect') {
     const { project, tab } = await requireActiveBrowserTab();
-    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.inspectPage({ maxElements: args.maxElements })) };
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.inspectPage({ context: browserContextFor(tab, project), maxElements: args.maxElements })) };
   }
   if (request.tool === 'atlas_browser_click') {
     const { project, tab } = await requireActiveBrowserTab();
-    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.clickPage({ ref: args.ref, doubleClick: args.doubleClick })) };
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.clickPage({ context: browserContextFor(tab, project), ref: args.ref, doubleClick: args.doubleClick })) };
   }
   if (request.tool === 'atlas_browser_type') {
     const { project, tab } = await requireActiveBrowserTab();
-    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.typePage({ ref: args.ref, text: args.text, replace: args.replace !== false })) };
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.typePage({ context: browserContextFor(tab, project), ref: args.ref, text: args.text, replace: args.replace !== false })) };
   }
   if (request.tool === 'atlas_browser_press_key') {
     const { project, tab } = await requireActiveBrowserTab();
-    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.pressPageKey({ ref: args.ref, key: args.key, modifiers: args.modifiers })) };
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.pressPageKey({ context: browserContextFor(tab, project), ref: args.ref, key: args.key, modifiers: args.modifiers })) };
   }
   if (request.tool === 'atlas_browser_scroll') {
     const { project, tab } = await requireActiveBrowserTab();
-    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.scrollPage({ deltaX: args.deltaX, deltaY: args.deltaY })) };
+    return { projectId: project.id, tabId: tab.id, ...(await window.atlasBrowser.scrollPage({ context: browserContextFor(tab, project), deltaX: args.deltaX, deltaY: args.deltaY })) };
   }
   if (request.tool === 'atlas_open_tab') {
     const project = requireProject();
@@ -2055,19 +2675,47 @@ async function executeAtlasAgentTool(request) {
     tab.url = normalizeAddress(args.url); activeProjectId = project.id; activeTabId = tab.id; activeView = 'browser'; save(); render();
     return { success: true, tab };
   }
+  if (request.tool === 'atlas_close_tab' || request.tool === 'atlas_close_tabs') {
+    const project = requireProject();
+    const tabIds = request.tool === 'atlas_close_tab' ? [args.tabId] : [...new Set(args.tabIds || [])];
+    if (!tabIds.length) throw new Error('At least one tab id is required.');
+    const unknownTabIds = tabIds.filter((tabId) => !project.tabs.some((tab) => tab.id === tabId));
+    if (unknownTabIds.length) throw new Error(`Tab not found: ${unknownTabIds.join(', ')}`);
+    const closing = project.tabs.filter((tab) => tabIds.includes(tab.id)).map(({ id, title, url }) => ({ id, title, url }));
+    project.tabs = project.tabs.filter((tab) => !tabIds.includes(tab.id));
+    if (activeProjectId === project.id && tabIds.includes(activeTabId)) activeTabId = project.tabs[0]?.id || null;
+    save();
+    render();
+    return { success: true, projectId: project.id, closedTabs: closing, remainingTabs: project.tabs.map(({ id, title, url }) => ({ id, title, url })) };
+  }
   if (request.tool === 'atlas_create_task') {
     const project = requireProject();
-    const task = { id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title: String(args.title).trim(), priority: args.priority || 'medium', dueAt: args.dueAt || '', notifiedAt: '', done: false, completedAt: '' };
+    if (args.reminderAt && args.dueAt && new Date(args.reminderAt) > new Date(args.dueAt)) throw new Error('Set the reminder before the task is due.');
+    const task = { id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title: String(args.title).trim(), priority: args.priority || 'medium', dueAt: args.dueAt || '', reminderAt: args.reminderAt || '', note: args.note || '', notifiedAt: '', remindedAt: '', done: false, completedAt: '', calendarEventId: '' };
     project.tasks.push(task); save(); render(); return { success: true, task };
   }
   if (request.tool === 'atlas_update_task') {
     const project = requireProject(); const task = project.tasks.find((entry) => entry.id === args.taskId); if (!task) throw new Error('Task not found.');
-    if (args.title !== undefined) task.title = String(args.title).trim(); if (args.priority !== undefined) task.priority = args.priority; if (args.dueAt !== undefined) { task.dueAt = args.dueAt; task.notifiedAt = ''; }
+    const linkedEvent = task.calendarEventId ? state.calendarEvents.find((entry) => entry.id === task.calendarEventId) : null;
+    if (linkedEvent && args.dueAt !== undefined && !args.dueAt) throw new Error('Calendar-linked tasks must keep a due date and time.');
+    const nextDueAt = args.dueAt !== undefined ? args.dueAt : task.dueAt;
+    const nextReminderAt = args.reminderAt !== undefined ? args.reminderAt : task.reminderAt;
+    if (nextReminderAt && nextDueAt && new Date(nextReminderAt) > new Date(nextDueAt)) throw new Error('Set the reminder before the task is due.');
+    if (args.title !== undefined) task.title = String(args.title).trim(); if (args.priority !== undefined) task.priority = args.priority; if (args.dueAt !== undefined) { task.dueAt = args.dueAt; task.notifiedAt = ''; } if (args.reminderAt !== undefined) { task.reminderAt = args.reminderAt; task.remindedAt = ''; } if (args.note !== undefined) task.note = String(args.note);
     if (args.done !== undefined) { task.done = args.done; task.completedAt = args.done ? new Date().toISOString() : ''; }
+    if (linkedEvent) {
+      if (!task.dueAt) throw new Error('Calendar-linked tasks must keep a due date and time.');
+      linkedEvent.title = task.title;
+      linkedEvent.startAt = task.dueAt;
+      linkedEvent.reminderAt = task.reminderAt || '';
+      linkedEvent.priority = task.priority;
+      linkedEvent.note = task.note || '';
+      linkedEvent.remindedAt = '';
+    }
     save(); render(); return { success: true, task };
   }
   if (request.tool === 'atlas_delete_task') {
-    const project = requireProject(); const before = project.tasks.length; project.tasks = project.tasks.filter((entry) => entry.id !== args.taskId); if (project.tasks.length === before) throw new Error('Task not found.'); save(); render(); return { success: true };
+    const project = requireProject(); const task = project.tasks.find((entry) => entry.id === args.taskId); if (!task) throw new Error('Task not found.'); if (task.calendarEventId) state.calendarEvents = state.calendarEvents.filter((event) => event.id !== task.calendarEventId); project.tasks = project.tasks.filter((entry) => entry.id !== args.taskId); save(); render(); return { success: true };
   }
   if (request.tool === 'atlas_save_current_page') {
     const project = requireProject(); const tab = currentTab(); if (!tab || activeProjectId !== project.id) throw new Error('That project does not have the currently visible page.');
@@ -2144,12 +2792,13 @@ function handleAgentEvent(message) {
   } else if (message.method === 'thread/tokenUsage/updated') {
     session.tokenUsage = message.params.tokenUsage;
   } else if (message.method === 'turn/completed') {
+    const wasBusy = session.busy;
     session.busy = false;
     session.messages.filter((entry) => entry.role === 'assistant').forEach((entry) => { entry.pending = false; });
     const latest = [...session.messages].reverse().find((entry) => entry.role === 'assistant');
-    if (profile.id === activeProfile().id) {
+    if (profile.id === activeProfile().id && wasBusy) {
       if (conversationMode.active && conversationMode.sessionId === session.id) continueConversationAfterTurn(latest?.text || 'I completed that request.');
-      else speakAgentText(latest?.text || '');
+      else if (conversationMode.suppressedSessionId !== session.id) speakAgentText(latest?.text || '');
       maybeCompactAgentSession(session);
     }
   } else if (message.method === 'thread/compacted') {
@@ -2229,6 +2878,8 @@ async function configureActiveAgentProvider() {
 
 function openSettings() {
   $('default-page-url').value = activeProfile().settings.defaultPageUrl || '';
+  $('website-microphone-enabled').checked = activeProfile().settings.websiteMicrophoneEnabled !== false;
+  $('website-camera-enabled').checked = activeProfile().settings.websiteCameraEnabled !== false;
   $('privacy-mode').value = activeProfile().settings.privacyMode || 'balanced';
   renderPrivacyStatus({ ...privacyStatus, mode: $('privacy-mode').value });
   $('agent-provider').innerHTML = providerTemplates.map((provider) => `<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.name)}</option>`).join('');
@@ -2249,11 +2900,12 @@ async function saveSettings(event) {
   const configuredDefault = $('default-page-url').value.trim();
   const previousProviderId = activeProfile().settings.agentProvider.id;
   const agentProvider = providerConfigFromForm();
-  activeProfile().settings = { ...activeProfile().settings, defaultPageUrl: configuredDefault ? normalizeAddress(configuredDefault) : '', privacyMode: $('privacy-mode').value || 'balanced', compactionThreshold: Number($('agent-compaction-threshold').value), reasoningEffort: agentProvider.effort, agentProvider, ttsVoice: $('tts-voice').value || 'af_heart', ttsSpeed: Number($('tts-speed').value) || 1, sttModel: $('stt-model').value, autoSpeak: $('auto-speak').checked, sidebarWidth: activeProfile().settings.sidebarWidth || 268, agentTrayHeight: activeProfile().settings.agentTrayHeight || 76 };
+  activeProfile().settings = { ...activeProfile().settings, defaultPageUrl: configuredDefault ? normalizeAddress(configuredDefault) : '', privacyMode: $('privacy-mode').value || 'balanced', websiteMicrophoneEnabled: $('website-microphone-enabled').checked, websiteCameraEnabled: $('website-camera-enabled').checked, compactionThreshold: Number($('agent-compaction-threshold').value), reasoningEffort: agentProvider.effort, agentProvider, ttsVoice: $('tts-voice').value || 'af_heart', ttsSpeed: Number($('tts-speed').value) || 1, sttModel: $('stt-model').value, autoSpeak: $('auto-speak').checked, sidebarWidth: activeProfile().settings.sidebarWidth || 268, agentTrayHeight: activeProfile().settings.agentTrayHeight || 76 };
   const secret = $('agent-provider-api-key').value;
   if (secret && isElectron) await window.atlasBrowser.saveAgentProviderSecret({ secretId: agentProvider.secretId, value: secret });
   saveProfiles();
   await configurePrivacyShield(activeProfile().settings.privacyMode);
+  await configureWebsiteMediaPermissions(activeProfile());
   await configureActiveAgentProvider();
   if (previousProviderId !== agentProvider.id) createAgentSession(activeView === 'agent' ? null : activeProjectId);
   closeSettings(); renderAgentWorkspace(); toast('Settings saved');
@@ -2264,7 +2916,7 @@ const walkthroughSteps = [
   { selector: '#project-filter', title: 'Find or create a project', copy: 'Search your projects here. Use the neon plus in the tool row to create one, then choose its name, status, color, image, or emoji.' },
   { selector: '.project-quick-menu', title: 'Project tools', copy: 'These buttons open Browser, Tasks, Agent, Library, and Notes for the selected project. Hover any icon to see its name.' },
   { selector: '.tabbar', title: 'Website tabs', copy: 'Tabs are real websites. Click a tab icon to choose from the searchable emoji library or switch back to the website favicon.' },
-  { selector: '.browser-toolbar', title: 'Browse and save', copy: 'Enter a URL or search here. Save to project adds the current page to that project’s Library.' },
+  { selector: '.browser-toolbar', title: 'Browse and save', copy: 'Enter a URL or search here. Save to Library adds the current page to the active project’s Library.' },
   { selector: '#download-button', title: 'Project downloads', copy: 'Downloads are saved to disk and automatically added to the current project’s Library. This popup only shows that project’s download activity; dismissing an item never deletes the file or Library resource.' },
   { selector: '#bookmarks-bar', title: 'Project bookmarks', copy: 'Bookmarks change with each project. A bookmark can also be shared with every project, including projects created later.' },
   { selector: '.browser-canvas', title: 'Capture research while browsing', copy: 'Highlight text on a webpage and right-click Send to Library. ATLAS saves the selection with its URL and date.' },
@@ -2341,6 +2993,8 @@ function clearConversationTimers() {
 
 function stopConversationMode(reason = '') {
   if (!conversationMode.active && !conversationMode.stream) return;
+  conversationMode.suppressedSessionId = conversationMode.sessionId;
+  conversationMode.generation += 1;
   conversationMode.active = false;
   clearConversationTimers();
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
@@ -2352,8 +3006,7 @@ function stopConversationMode(reason = '') {
   conversationMode.audioContext = null;
   conversationMode.analyser = null;
   conversationMode.phase = 'off';
-  if (activeTtsAudio) activeTtsAudio.pause();
-  if (conversationTtsFinish) conversationTtsFinish();
+  cancelAgentSpeech({ stopEngine: true });
   renderAgentWorkspace();
   if (reason) toast(reason);
 }
@@ -2409,9 +3062,10 @@ function monitorConversationVoice() {
 
 async function transcribeConversationUtterance(blob) {
   if (!conversationMode.active) return;
+  const generation = conversationMode.generation;
   try {
     const result = await window.atlasBrowser.transcribeAudio({ bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: blob.type, model: activeProfile().settings.sttModel || 'base.en' });
-    if (!conversationMode.active) return;
+    if (!conversationMode.active || generation !== conversationMode.generation) return;
     const text = result.text?.trim();
     if (!text) {
       toast('I did not catch that. Listening again…');
@@ -2465,21 +3119,23 @@ async function beginConversationListening() {
 
 async function continueConversationAfterTurn(text) {
   if (!conversationMode.active) return;
+  const generation = conversationMode.generation;
   clearConversationTimers();
   await conversationMode.audioContext?.suspend();
   setConversationPhase('speaking');
   await speakAgentText(text, true);
-  if (!conversationMode.active) return;
+  if (!conversationMode.active || generation !== conversationMode.generation) return;
   await new Promise((resolve) => setTimeout(resolve, 450));
   await beginConversationListening();
 }
 
 async function resumeConversationAfterFailure(text) {
   if (!conversationMode.active) return;
+  const generation = conversationMode.generation;
   await conversationMode.audioContext?.suspend();
   setConversationPhase('speaking');
   await speakAgentText(text, true);
-  if (conversationMode.active) await beginConversationListening();
+  if (conversationMode.active && generation === conversationMode.generation) await beginConversationListening();
 }
 
 async function toggleAgentVoice(targetId = 'agent-input') {
@@ -2497,8 +3153,10 @@ async function toggleAgentVoice(targetId = 'agent-input') {
     analyser.smoothingTimeConstant = 0.2;
     audioContext.createMediaStreamSource(stream).connect(analyser);
     conversationMode.active = true;
+    conversationMode.generation += 1;
     conversationMode.targetId = targetId;
     conversationMode.sessionId = session.id;
+    conversationMode.suppressedSessionId = '';
     conversationMode.audioContext = audioContext;
     conversationMode.analyser = analyser;
     await beginConversationListening();
@@ -2604,20 +3262,9 @@ $('bookmark-manager-list').addEventListener('click', (event) => {
     if (bookmark) openBookmarkEditor(bookmark);
   } else if (removeButton) removeBookmark(removeButton.dataset.bookmarkRemove);
 });
-$('bookmark-color').addEventListener('input', (event) => setBookmarkColor(event.target.value));
-$('bookmark-color-hex').addEventListener('input', (event) => { if (/^#[0-9a-f]{6}$/i.test(event.target.value.trim())) setBookmarkColor(event.target.value); });
-$('bookmark-color-hex').addEventListener('blur', (event) => setBookmarkColor(event.target.value));
+bindColorPicker('bookmark-color', setBookmarkColor);
+bindColorPicker('bookmark-text-color', setBookmarkTextColor);
 $('bookmark-apply-all').addEventListener('change', (event) => { $('bookmark-scope-state').textContent = event.target.checked ? 'All projects' : 'This project only'; });
-document.querySelectorAll('[data-bookmark-color]').forEach((button) => button.addEventListener('click', () => setBookmarkColor(button.dataset.bookmarkColor)));
-$('bookmark-eyedropper').addEventListener('click', async () => {
-  if (!window.EyeDropper) return toast('The eyedropper is not available on this system');
-  try {
-    const result = await new window.EyeDropper().open();
-    if (result?.sRGBHex) setBookmarkColor(result.sRGBHex);
-  } catch (error) {
-    if (error?.name !== 'AbortError') toast('Could not sample that color');
-  }
-});
 $('go').addEventListener('click', navigateCurrentTab);
 $('address').addEventListener('keydown', (event) => { if (event.key === 'Enter') navigateCurrentTab(); });
 $('open-page').addEventListener('click', () => { const tab = currentTab(); if (tab?.url) window.open(tab.url, '_blank', 'noopener'); });
@@ -2628,13 +3275,14 @@ $('voice-agent').addEventListener('click', () => toggleAgentVoice('agent-input')
 $('agent-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendAgentMessage('agent-input'); } });
 $('agent-input').addEventListener('input', (event) => { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 180)}px`; });
 $('expand-agent-tray').addEventListener('click', () => { ensureTrayAgentSession(); activeView = 'agent'; save(); render(); });
+$('new-agent-tray-session').addEventListener('click', createTrayAgentSession);
 $('agent-tray-send').addEventListener('click', () => sendAgentMessage('agent-tray-input'));
 $('agent-tray-voice').addEventListener('click', () => toggleAgentVoice('agent-tray-input'));
 $('agent-tray-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendAgentMessage('agent-tray-input'); } });
 $('agent-tray-input').addEventListener('input', (event) => { if ($('agent-tray').classList.contains('tray-expanded')) event.target.style.height = '100%'; else { event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 92)}px`; } });
-$('nav-reload').addEventListener('click', () => { if (isElectron) window.atlasBrowser.reload(); else { const frame = $('website-frame'); frame.src = frame.src; } });
-$('nav-back').addEventListener('click', () => { if (isElectron) window.atlasBrowser.back(); });
-$('nav-forward').addEventListener('click', () => { if (isElectron) window.atlasBrowser.forward(); });
+$('nav-reload').addEventListener('click', () => { if (isElectron) window.atlasBrowser.reload(browserContextFor()); else { const frame = $('website-frame'); frame.src = frame.src; } });
+$('nav-back').addEventListener('click', () => { if (isElectron) window.atlasBrowser.back(browserContextFor()); });
+$('nav-forward').addEventListener('click', () => { if (isElectron) window.atlasBrowser.forward(browserContextFor()); });
 document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => { $('agent-input').value = button.dataset.prompt; $('agent-input').focus(); }));
 $('resource-type').addEventListener('change', updateResourceForm);
 $('resource-file').addEventListener('change', (event) => {
@@ -2671,6 +3319,54 @@ $('notification-button').addEventListener('click', () => {
 $('download-button').addEventListener('click', () => {
   if ($('download-popover').classList.contains('hidden')) openDownloads(); else closeDownloads();
 });
+$('calendar-button').addEventListener('click', openCalendar);
+$('close-calendar').addEventListener('click', closeCalendar);
+$('calendar-today').addEventListener('click', () => { calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1); renderCalendar(); });
+$('calendar-previous').addEventListener('click', () => moveCalendarMonth(-1));
+$('calendar-next').addEventListener('click', () => moveCalendarMonth(1));
+$('calendar-grid').addEventListener('click', (event) => {
+  const eventButton = event.target.closest('[data-calendar-event]');
+  const taskButton = event.target.closest('[data-calendar-task]');
+  const day = event.target.closest('[data-calendar-date]');
+  if (eventButton) openCalendarEventEditor(state.calendarEvents.find((entry) => entry.id === eventButton.dataset.calendarEvent));
+  else if (taskButton) openCalendarTask(taskButton.dataset.calendarProject, taskButton.dataset.calendarTask);
+  else if (day) openCalendarEventEditor(null, day.dataset.calendarDate);
+});
+$('calendar-grid').addEventListener('dragstart', (event) => {
+  const eventButton = event.target.closest('[data-calendar-event]');
+  if (!eventButton) return;
+  calendarDragEventId = eventButton.dataset.calendarEvent;
+  eventButton.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', calendarDragEventId);
+});
+$('calendar-grid').addEventListener('dragover', (event) => {
+  const day = event.target.closest('[data-calendar-date]');
+  if (!day || !calendarDragEventId) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.calendar-day.drop-target').forEach((entry) => entry.classList.remove('drop-target'));
+  day.classList.add('drop-target');
+});
+$('calendar-grid').addEventListener('drop', (event) => {
+  const day = event.target.closest('[data-calendar-date]');
+  if (!day || !calendarDragEventId) return;
+  event.preventDefault();
+  moveCalendarEventToDate(calendarDragEventId, day.dataset.calendarDate);
+  calendarDragEventId = '';
+});
+$('calendar-grid').addEventListener('dragend', () => {
+  calendarDragEventId = '';
+  document.querySelectorAll('.calendar-day.drop-target, .calendar-event.dragging').forEach((entry) => entry.classList.remove('drop-target', 'dragging'));
+});
+$('calendar-modal').addEventListener('click', (event) => { if (event.target === $('calendar-modal')) closeCalendar(); });
+$('calendar-event-form').addEventListener('submit', saveCalendarEvent);
+$('close-calendar-event').addEventListener('click', closeCalendarEventEditor);
+$('cancel-calendar-event').addEventListener('click', closeCalendarEventEditor);
+$('delete-calendar-event').addEventListener('click', deleteCalendarEvent);
+$('calendar-event-modal').addEventListener('click', (event) => { if (event.target === $('calendar-event-modal')) closeCalendarEventEditor(); });
+$('calendar-event-name').addEventListener('input', (event) => { $('calendar-event-color-sample').textContent = event.target.value.trim() || 'Event preview'; });
+bindColorPicker('calendar-event-color', setCalendarEventColor);
 $('settings-button').addEventListener('click', openSettings);
 $('settings-form').addEventListener('submit', saveSettings);
 $('agent-provider').addEventListener('change', () => populateProviderForm(activeProviderTemplate($('agent-provider').value)));
@@ -2687,7 +3383,7 @@ $('clear-website-data').addEventListener('click', async () => {
   button.textContent = 'Clearing website data…';
   try {
     if (!isElectron || !window.atlasBrowser.clearWebsiteData) throw new Error('This control is available in the ATLAS desktop app.');
-    renderPrivacyStatus(await window.atlasBrowser.clearWebsiteData());
+    renderPrivacyStatus(await window.atlasBrowser.clearWebsiteData(activeProfile().id));
     toast('Website cookies, cache, and stored data cleared');
   } catch (error) {
     toast(`Could not clear website data: ${error.message}`);
@@ -2724,6 +3420,7 @@ $('close-settings-modal').addEventListener('click', closeSettings);
 $('cancel-settings').addEventListener('click', closeSettings);
 $('settings-modal').addEventListener('click', (event) => { if (event.target === $('settings-modal')) closeSettings(); });
 $('close-notifications').addEventListener('click', closeNotifications);
+$('clear-notifications').addEventListener('click', markAllNotificationsRead);
 $('notification-list').addEventListener('click', (event) => { const button = event.target.closest('[data-notification-id]'); if (button) openNotification(button.dataset.notificationId); });
 $('close-downloads').addEventListener('click', closeDownloads);
 $('download-list').addEventListener('click', (event) => {
@@ -2803,21 +3500,8 @@ $('project-image-input').addEventListener('change', (event) => {
   reader.onload = () => loadCropImage(reader.result);
   reader.readAsDataURL(file);
 });
-$('project-color').addEventListener('input', (event) => setProjectColor(event.target.value));
-$('project-color-hex').addEventListener('input', (event) => {
-  if (/^#[0-9a-f]{6}$/i.test(event.target.value.trim())) setProjectColor(event.target.value);
-});
-$('project-color-hex').addEventListener('blur', (event) => setProjectColor(event.target.value));
-document.querySelectorAll('[data-project-color]').forEach((button) => button.addEventListener('click', () => setProjectColor(button.dataset.projectColor)));
-$('project-eyedropper').addEventListener('click', async () => {
-  if (!window.EyeDropper) return toast('The eyedropper is not available on this system');
-  try {
-    const result = await new window.EyeDropper().open();
-    if (result?.sRGBHex) setProjectColor(result.sRGBHex);
-  } catch (error) {
-    if (error?.name !== 'AbortError') toast('Could not sample that color');
-  }
-});
+bindColorPicker('project-color', setProjectColor);
+bindColorPicker('project-text-color', setProjectTextColor);
 $('project-image-zoom').addEventListener('input', (event) => {
   if (!cropSource) return;
   const previousScale = cropBaseScale * cropZoom;
@@ -2878,7 +3562,7 @@ $('use-favicon').addEventListener('click', () => {
   save();
   renderTabs(currentProject());
   closeEmojiPicker();
-  if (!tab.favicon && isElectron && tab.id === activeTabId) window.atlasBrowser.reload();
+  if (!tab.favicon && isElectron && tab.id === activeTabId) window.atlasBrowser.reload(browserContextFor());
   toast(tab.favicon ? 'Using website favicon' : 'Using website favicon when available');
 });
 $('close-emoji-picker').addEventListener('click', closeEmojiPicker);
@@ -2911,6 +3595,8 @@ document.addEventListener('keydown', (event) => {
   else if (!$('bookmark-modal').classList.contains('hidden')) closeBookmarkEditor();
   else if (!$('bookmark-manager').classList.contains('hidden')) closeBookmarkManager();
   else if (!$('settings-modal').classList.contains('hidden')) closeSettings();
+  else if (!$('calendar-event-modal').classList.contains('hidden')) closeCalendarEventEditor();
+  else if (!$('calendar-modal').classList.contains('hidden')) closeCalendar();
   else if (!$('download-popover').classList.contains('hidden')) closeDownloads();
   else if (!$('notification-popover').classList.contains('hidden')) closeNotifications();
 });
@@ -2921,29 +3607,30 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 if (isElectron) {
   window.atlasBrowser.onAppCommand((command) => {
-    if (command?.type === 'open-url') openExternalUrlInNewTab(command.url);
+    if (command?.type === 'open-url') openExternalUrlInNewTab(command.url, command.context);
     else if (command === 'new-tab') addTab();
     else if (command === 'close-tab' && activeTabId) closeTab(activeTabId);
   });
-  window.atlasBrowser.onAuthCompatibility?.(() => toast('Microsoft passkey sign-in is unavailable here. Choose Sign-in options and use another verification method.'));
-  window.atlasBrowser.onNavigated((url) => {
+  window.atlasBrowser.onNavigated((payload) => {
+    if (!matchesCurrentBrowserContext(payload?.context)) return;
+    const url = payload.url;
     const tab = currentTab();
     if (!tab) return;
-    lastDesktopUrl = url;
     $('address').value = url;
-    if (isTransientMicrosoftAuthenticationUrl(url)) return;
     tab.url = url;
     save();
   });
-  window.atlasBrowser.onTitle((title) => { const tab = currentTab(); if (!tab || !title) return; tab.title = title; save(); renderTabs(currentProject()); });
-  window.atlasBrowser.onFavicon((favicon) => {
+  window.atlasBrowser.onTitle((payload) => { if (!matchesCurrentBrowserContext(payload?.context)) return; const tab = currentTab(); if (!tab || !payload.title) return; tab.title = payload.title; save(); renderTabs(currentProject()); });
+  window.atlasBrowser.onFavicon((payload) => {
+    if (!matchesCurrentBrowserContext(payload?.context)) return;
+    const favicon = payload.favicon;
     const tab = currentTab();
     if (!tab || !favicon) return;
     tab.favicon = favicon;
     save();
     if (tab.iconMode === 'favicon') renderTabs(currentProject());
   });
-  window.atlasBrowser.onSendSelectionToLibrary(saveWebSelectionToLibrary);
+  window.atlasBrowser.onSendSelectionToLibrary((payload) => { if (matchesCurrentBrowserContext(payload?.context)) saveWebSelectionToLibrary(payload); });
   window.atlasBrowser.onDownloadEvent(handleDownloadEvent);
   window.atlasBrowser.onPrivacyStatus(renderPrivacyStatus);
   window.atlasBrowser.onAgentEvent(handleAgentEvent);
@@ -2961,6 +3648,7 @@ applyAgentTrayHeight(activeProfile().settings.agentTrayHeight);
 render();
 if (isElectron) {
   configurePrivacyShield(activeProfile().settings.privacyMode);
+  configureWebsiteMediaPermissions(activeProfile());
   window.atlasBrowser.getAgentProviderTemplates()
     .then((templates) => { providerTemplates = templates || []; return configureActiveAgentProvider(); })
     .catch((error) => { agentRuntimeStatus = { state: 'error', message: error.message }; renderAgentWorkspace(); });

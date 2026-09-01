@@ -19,3 +19,10 @@ test('reduced user agent removes the exact Chromium build', () => {
   assert.doesNotMatch(windowsUserAgent, /8123\.45/);
   assert.match(windowsUserAgent, /Chrome\/152\.0\.0\.0/);
 });
+
+test('secure websites can write sanitized clipboard text without gaining clipboard read access', () => {
+  assert.equal(privacyInternals.allowsWebsitePermission('clipboard-sanitized-write', 'https://chatgpt.com/'), true);
+  assert.equal(privacyInternals.allowsWebsitePermission('clipboard-read', 'https://chatgpt.com/'), false);
+  assert.equal(privacyInternals.allowsWebsitePermission('clipboard-sanitized-write', 'http://example.com/'), false);
+  assert.equal(privacyInternals.allowsWebsitePermission('clipboard-sanitized-write', 'http://localhost:48173/'), true);
+});

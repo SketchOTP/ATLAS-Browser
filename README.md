@@ -1,21 +1,31 @@
 <div align="center">
   <img src="public/assets/atlas-mark.png" alt="ATLAS logo" width="128" height="128" />
 
-  # ATLAS Browser
+  # ATLAS
 
   **A project-centered browser built for agentic research, durable context, and focused execution.**
 
   Keep websites, tasks, notes, documents, bookmarks, and AI conversations inside the project where they belong.
 
-  [![Status](https://img.shields.io/badge/status-alpha-B026FF?style=for-the-badge&labelColor=08050A)](#project-status)
+  [![Release](https://img.shields.io/github/v/release/SketchOTP/ATLAS-Browser?include_prereleases&style=for-the-badge&labelColor=08050A&color=B026FF)](https://github.com/SketchOTP/ATLAS-Browser/releases)
+  [![CI](https://img.shields.io/github/actions/workflow/status/SketchOTP/ATLAS-Browser/ci.yml?branch=main&style=for-the-badge&labelColor=08050A&color=B026FF)](https://github.com/SketchOTP/ATLAS-Browser/actions/workflows/ci.yml)
   [![Electron](https://img.shields.io/badge/Electron-44-FFFFFF?style=for-the-badge&logo=electron&logoColor=B026FF&labelColor=08050A)](https://www.electronjs.org/)
-  [![Node.js](https://img.shields.io/badge/Node.js-20%2B-FFFFFF?style=for-the-badge&logo=nodedotjs&logoColor=B026FF&labelColor=08050A)](https://nodejs.org/)
-  [![Local first](https://img.shields.io/badge/workspace-local--first-B026FF?style=for-the-badge&labelColor=08050A)](#privacy-and-data)
+  [![License](https://img.shields.io/github/license/SketchOTP/ATLAS-Browser?style=for-the-badge&labelColor=08050A&color=FFFFFF)](LICENSE)
 
-  [Features](#features) · [Quick start](#quick-start) · [Agent providers](#agent-providers) · [Architecture](#architecture) · [Agent handbook](https://app.notion.com/p/3ca833cb27ff811589f8e32ceefa8883) · [Contributing](#contributing)
+  [Download](https://github.com/SketchOTP/ATLAS-Browser/releases) · [Features](#features) · [Quick start](#quick-start) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 </div>
 
 ---
+
+<p align="center">
+  <img src="docs/images/atlas-project-workspace.png" alt="ATLAS project workspace showing project-scoped tabs, tasks, and the persistent agent tray" width="100%" />
+</p>
+
+<details>
+<summary><strong>Agent workspace</strong></summary>
+<br />
+<img src="docs/images/atlas-agent-workspace.png" alt="ATLAS agent workspace with a project-scoped saved conversation" width="100%" />
+</details>
 
 ## What is ATLAS?
 
@@ -26,9 +36,9 @@ The built-in agent can research in browser tabs, read the current page, inspect 
 ATLAS is local-first and provider-flexible. Codex CLI with ChatGPT OAuth is the default integration, while the provider layer can also be configured for Claude Code, Antigravity CLI, Cursor Agent, OpenClaw, Hermes Agent, custom structured CLIs, or an OpenAI-compatible endpoint.
 
 > [!IMPORTANT]
-> ATLAS is currently alpha software. It is suitable for development and personal experimentation, but it does not yet ship signed installers, automatic updates, cloud synchronization, or a stable data-migration guarantee.
+> ATLAS `0.1.x` is a public preview. Release artifacts are automated and content-audited, but they are not yet code-signed or notarized. Back up important information before upgrading; stable migration guarantees and automatic updates are not available yet.
 
-The [ATLAS Browser Complete Agent and Maintainer Guide](https://app.notion.com/p/3ca833cb27ff811589f8e32ceefa8883) (Notion workspace access required) is the long-form operational handbook for incoming agents and maintainers. It documents product behavior, architecture, data boundaries, tool scope, download capabilities, verification procedures, and safe-change rules. The repository remains authoritative when implementation details differ.
+The public repository is self-contained. Start with the [architecture](docs/ARCHITECTURE.md), [privacy model](docs/PRIVACY.md), [security policy](SECURITY.md), and [release process](docs/RELEASING.md) for implementation and trust-boundary details.
 
 ## Why ATLAS?
 
@@ -49,14 +59,14 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 - Drag-and-drop project ordering and a resizable project sidebar
 - Project-specific tabs, bookmarks, tasks, notes, library items, and agent context
 - Separate local profiles identified by display name and email
+- Profile-scoped persistent website sessions: Google and other OAuth sign-ins are reusable across that profile's projects, tabs, and sign-in popups, but cookies and site storage are never shared with another ATLAS profile
 - Persistent state restored when ATLAS is reopened or profiles are switched
 
 ### Native website browsing
 
 - Real websites rendered in an isolated Electron `WebContentsView`
-- Visible sandboxed website popups that preserve opener state and the shared website session for Microsoft and other OAuth sign-in flows
-- Microsoft sign-in compatibility on Linux and macOS that recognizes unsupported platform-passkey pages and returns through browser history to Microsoft's valid method-selection screen without rewriting Microsoft authentication state
-- Transient Microsoft FIDO endpoints are never persisted as resumable ATLAS tab URLs, preventing a POST-only authentication step from becoming a broken restored GET after relaunch
+- Visible sandboxed website popups that preserve opener state and the shared website session for supported OAuth sign-in flows
+- Hard profile/project/tab browser-history isolation: every open tab owns a separately keyed Electron website view and Back/Forward stack, inactive views cannot receive browser or agent commands, late navigation metadata is discarded outside its originating context, and removed tabs/projects are destroyed rather than reassigned
 - Project-scoped website tabs with searchable emoji icons or automatic favicons
 - Back, forward, reload, address/search input, and configurable new-tab page
 - Project bookmark bars with custom names and neon colors
@@ -119,27 +129,41 @@ A clean profile opens an interactive walkthrough covering projects, tabs, emoji 
 
 ## Quick start
 
+### Install a release
+
+Download the latest build from [GitHub Releases](https://github.com/SketchOTP/ATLAS-Browser/releases).
+
+Linux releases include an AppImage and Debian package. Make an AppImage executable before opening it:
+
+```bash
+chmod +x ATLAS-*.AppImage
+./ATLAS-*.AppImage
+```
+
+Install a Debian package with:
+
+```bash
+sudo apt install ./ATLAS-*.deb
+```
+
+Windows releases include an interactive NSIS installer and a portable executable. Preview builds are unsigned, so the operating system may display an unknown-publisher warning. Verify the file against `SHA256SUMS.txt` attached to the same release before running it.
+
+Release packages contain no profile records, maintainer projects, cookies, OAuth tokens, API keys, browsing history, downloads, or personal settings. On first launch, ATLAS creates an empty generic local profile in the operating system's application-data directory and starts the walkthrough.
+
+### Run from source
+
 ### Requirements
 
 - Git
-- Node.js 20 or newer
-- npm or pnpm
+- Node.js 22.12 or newer
+- pnpm 11.19 or newer
 - A supported agent CLI if agent functionality is desired
 - Python 3.11+ and FFmpeg for optional local voice features
 
-### Clone with SSH
-
 ```bash
-git clone git@github.com:SketchOTP/ATLAS-Browser.git
+git clone https://github.com/SketchOTP/ATLAS-Browser.git
 cd ATLAS-Browser
-npm install
-npm start
-```
-
-If you prefer pnpm:
-
-```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm start
 ```
 
@@ -163,7 +187,7 @@ ATLAS saves website downloads in the operating system Downloads folder. For isol
 ### Web-only preview
 
 ```bash
-npm run serve
+pnpm run serve
 ```
 
 Then open <http://localhost:48173>.
@@ -186,7 +210,7 @@ The default ATLAS configuration uses:
 | --- | --- |
 | Provider | Codex CLI |
 | Transport | Codex App Server over stdio |
-| Model | `gpt-5.6-luna` |
+| Model | Codex CLI account default; configurable in Settings |
 | Reasoning effort | Medium |
 | Authentication | ChatGPT OAuth managed by Codex CLI |
 | Usage meter | Native Codex account rate-limit data |
@@ -273,6 +297,8 @@ flowchart LR
 
 ## Architecture
 
+The detailed component and trust-boundary guide is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ```mermaid
 flowchart TB
     UI[ATLAS renderer\nHTML, CSS, JavaScript] <-- IPC --> Main[Electron main process]
@@ -325,7 +351,7 @@ The current tool bridge allows an agent to:
 
 - Read the permitted ATLAS project context
 - Read the visible text, URL, and title of the current page
-- Open a new project tab or navigate an existing tab
+- Open, navigate, close, or bulk-close exact project tabs while preserving tabs the user asked to keep
 - Inspect visible interactive page elements and receive short-lived element references
 - Click inspected elements using native Chromium mouse input
 - Type into inspected fields, choose select options, press common keys, and scroll the page
@@ -392,24 +418,23 @@ The repository ignores virtual environments, dependencies, local logs, runtime o
 
 ## Development
 
-Install dependencies and run the syntax suite:
+Install dependencies and run the full release gate:
 
 ```bash
-npm install
-npm run check
-npm test
+pnpm install --frozen-lockfile
+pnpm run release:check
 ```
 
 Start the Electron application:
 
 ```bash
-npm start
+pnpm start
 ```
 
 Start only the UI server:
 
 ```bash
-npm run serve
+pnpm run serve
 ```
 
 When changing agent providers, test both a clean temporary profile and an existing profile. Provider changes must not rewrite existing project data, copy OAuth credentials, or attempt to resume a conversation through a different provider.
@@ -476,24 +501,15 @@ When changing agent providers, test both a clean temporary profile and an existi
 
 ## Project status
 
-ATLAS is under active development. The current source is a functional Linux-tested alpha with cross-platform Electron code paths. Before a stable release, the project still needs packaged installers, automated migration tests, export and backup tooling, broader platform testing, accessibility review, and a formal security audit.
+ATLAS `0.1.x` is a functional, versioned public preview with automated Linux and Windows packaging, clean-profile smoke testing, package-content auditing, and focused isolation tests. It is not yet production-certified: installers are unsigned, automatic updates and profile backup/export are not implemented, accessibility and broader platform validation remain in progress, and no independent security audit has been completed. See the [changelog](CHANGELOG.md) for the precise release surface.
 
 ## Contributing
 
-Contributions and issue reports are welcome once the repository is public.
-
-1. Fork the repository.
-2. Create a focused branch from `main`.
-3. Make the change without adding personal profiles, secrets, generated models, or dependency folders.
-4. Run `npm run check`.
-5. Test with a clean `ATLAS_USER_DATA_DIR` and, when relevant, an existing profile.
-6. Open a pull request describing the user-facing behavior and verification performed.
-
-Please keep provider adapters configurable and avoid hard-coding local usernames, installation paths, credentials, or account-specific model availability.
+Contributions and issue reports are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, trust-boundary rules, required checks, and pull-request expectations.
 
 ## Security
 
-Do not report credentials, private project data, or authentication tokens in a public issue. Until a dedicated security policy and private reporting channel are added, avoid publishing sensitive reproduction material and contact the repository owner directly.
+Do not report credentials, private project data, or authentication tokens in a public issue. Follow [SECURITY.md](SECURITY.md) and use GitHub private vulnerability reporting.
 
 ## License
 

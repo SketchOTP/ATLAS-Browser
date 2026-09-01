@@ -17,10 +17,14 @@ function pythonInvocation() {
 function run(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true });
+    let stdout = '';
     let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('error', reject);
-    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(stderr.trim().split('\n').slice(-4).join(' ') || `Whisper exited with code ${code}`)));
+    child.on('exit', (code) => code === 0
+      ? resolve({ stdout, stderr })
+      : reject(new Error([stderr, stdout].join('\n').trim().split('\n').slice(-8).join(' ') || `Whisper exited with code ${code}`)));
   });
 }
 
@@ -33,8 +37,17 @@ export async function transcribeLocalAudio({ bytes, mimeType, model }) {
   try {
     await fs.writeFile(inputPath, Buffer.from(bytes));
     const python = pythonInvocation();
-    await run(python.command, [...python.args, '-m', 'whisper', inputPath, '--model', selectedModel, '--output_format', 'json', '--output_dir', tempDir, '--fp16', 'False']);
-    const result = JSON.parse(await fs.readFile(path.join(tempDir, 'recording.json'), 'utf8'));
+    const execution = await run(python.command, [...python.args, '-m', 'whisper', inputPath, '--model', selectedModel, '--output_format', 'json', '--output_dir', tempDir, '--fp16', 'False']);
+    const outputPath = path.join(tempDir, 'recording.json');
+    try { await fs.access(outputPath); }
+    catch {
+      const diagnostic = [execution.stderr, execution.stdout].join('\n').trim().split('\n').slice(-8).join(' ');
+      const missingDecoder = diagnostic.includes("No such file or directory: 'ffmpeg'");
+      throw new Error(missingDecoder
+        ? 'FFmpeg is required for local Whisper transcription. Install ffmpeg and restart ATLAS.'
+        : `Whisper did not produce a transcript${diagnostic ? `: ${diagnostic}` : '.'}`);
+    }
+    const result = JSON.parse(await fs.readFile(outputPath, 'utf8'));
     return { text: String(result.text || '').trim(), model: selectedModel };
   } finally {
     const resolved = path.resolve(tempDir);

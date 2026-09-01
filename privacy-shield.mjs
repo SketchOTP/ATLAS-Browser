@@ -56,24 +56,38 @@ function sanitizedNavigationUrl(value) {
   } catch { return ''; }
 }
 
+function allowsClipboardWrite(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (url.protocol === 'https:') return true;
+    return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  } catch { return false; }
+}
+
+function allowsWebsitePermission(permission, requestingOrigin) {
+  return permission === 'fullscreen' || (permission === 'clipboard-sanitized-write' && allowsClipboardWrite(requestingOrigin));
+}
+
 function genericUserAgent(baseUserAgent) {
   return String(baseUserAgent)
     .replace(/Chrome\/(\d+)\.\S+/, 'Chrome/$1.0.0.0');
 }
 
 export class PrivacyShield {
-  constructor({ onStatus = () => {} } = {}) {
+  constructor({ onStatus = () => {}, allowPermission = () => false } = {}) {
     this.mode = 'balanced';
     this.blockedRequests = 0;
     this.cleanedLinks = 0;
     this.onStatus = onStatus;
+    this.allowPermission = allowPermission;
     this.statusTimer = null;
+    this.webContents = new Set();
   }
 
-  attach(browserSession, webContents) {
+  attach(browserSession, webContents = null) {
     this.session = browserSession;
-    this.webContents = webContents;
-    this.baseUserAgent = String(webContents.getUserAgent()).replace(/\sElectron\/\S+/i, '').replace(/\sATLAS\/\S+/i, '');
+    this.baseUserAgent = String(webContents?.getUserAgent?.() || browserSession.getUserAgent());
+    if (webContents) this.attachWebContents(webContents);
     this.#applyUserAgent();
 
     const filter = { urls: ['http://*/*', 'https://*/*'] };
@@ -124,9 +138,19 @@ export class PrivacyShield {
       callback({ responseHeaders });
     });
 
-    browserSession.setPermissionCheckHandler((_contents, permission) => permission === 'fullscreen');
-    browserSession.setPermissionRequestHandler((_contents, permission, callback) => callback(permission === 'fullscreen'));
+    browserSession.setPermissionCheckHandler((_contents, permission, requestingOrigin, details) => allowsWebsitePermission(permission, requestingOrigin) || this.allowPermission(permission, requestingOrigin, details));
+    browserSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+      const requestingOrigin = details?.requestingUrl || contents?.getURL?.() || '';
+      callback(allowsWebsitePermission(permission, requestingOrigin) || this.allowPermission(permission, requestingOrigin, details));
+    });
     this.#emitStatus(true);
+  }
+
+  attachWebContents(webContents) {
+    if (!webContents || webContents.isDestroyed?.()) return;
+    this.webContents.add(webContents);
+    webContents.once?.('destroyed', () => this.webContents.delete(webContents));
+    webContents.setUserAgent(this.mode === 'strict' ? genericUserAgent(this.baseUserAgent) : this.baseUserAgent);
   }
 
   setMode(value) {
@@ -151,8 +175,11 @@ export class PrivacyShield {
   }
 
   #applyUserAgent() {
-    if (!this.webContents || !this.baseUserAgent) return;
-    this.webContents.setUserAgent(this.mode === 'strict' ? genericUserAgent(this.baseUserAgent) : this.baseUserAgent);
+    if (!this.baseUserAgent) return;
+    for (const contents of this.webContents) {
+      if (contents.isDestroyed?.()) this.webContents.delete(contents);
+      else contents.setUserAgent(this.mode === 'strict' ? genericUserAgent(this.baseUserAgent) : this.baseUserAgent);
+    }
   }
 
   #emitStatus(immediate = false) {
@@ -162,4 +189,4 @@ export class PrivacyShield {
   }
 }
 
-export const privacyInternals = { genericUserAgent, matchesHost, sanitizedNavigationUrl };
+export const privacyInternals = { allowsClipboardWrite, allowsWebsitePermission, genericUserAgent, matchesHost, sanitizedNavigationUrl };
