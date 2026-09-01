@@ -33,9 +33,9 @@
     "audit:release": "node scripts/audit-release.mjs",
     "screenshots": "ATLAS_BROWSER_PORT=49282 node scripts/capture-release-screenshots.mjs",
     "package:dir": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:linux": "electron-builder --linux AppImage deb",
-    "dist:win": "electron-builder --win nsis portable",
+    "dist": "electron-builder --publish never",
+    "dist:linux": "electron-builder --linux AppImage deb --publish never",
+    "dist:win": "electron-builder --win nsis portable --publish never",
     "verify:package": "node scripts/verify-package.mjs",
     "smoke:linux": "bash scripts/smoke-packaged-linux.sh",
     "release:check": "pnpm run check && pnpm test && pnpm audit --prod --audit-level high && pnpm run audit:release"
