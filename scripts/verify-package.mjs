@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { extractAll } from '@electron/asar';
 
@@ -10,7 +11,7 @@ const candidates = [
 const asarPath = candidates.find((candidate) => fs.existsSync(candidate));
 if (!asarPath) throw new Error('No unpacked ATLAS package found. Run `pnpm run package:dir` first.');
 
-const extractRoot = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'atlas-package-audit-'));
+const extractRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-package-audit-'));
 try {
   extractAll(asarPath, extractRoot);
   const forbidden = [
@@ -29,7 +30,7 @@ try {
   }
   const failures = [];
   for (const file of files) {
-    const relative = path.relative(extractRoot, file);
+    const relative = path.relative(extractRoot, file).split(path.sep).join('/');
     if (/(^|\/)(Cookies|Local State|Preferences|WebStorage|Session Storage|Browser)(\/|$)/i.test(relative)) failures.push(`runtime state: ${relative}`);
     if (fs.statSync(file).size > 2_000_000) continue;
     const content = fs.readFileSync(file).toString('utf8');
