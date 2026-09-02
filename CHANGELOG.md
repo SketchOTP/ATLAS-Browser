@@ -13,6 +13,13 @@ All notable changes to ATLAS are documented here. This project follows
 - Profile export, import, and encrypted backup
 - Broader accessibility and platform certification
 
+## [0.1.2] - 2026-09-01
+
+### Security
+
+- Remove the web-preview URL probe endpoint so the local shell server never makes requests to user-supplied destinations
+- Generate persistent workspace identifiers with `crypto.randomUUID()` instead of non-cryptographic randomness
+
 ## [0.1.1] - 2026-09-01
 
 ### Fixed
@@ -43,6 +50,7 @@ All notable changes to ATLAS are documented here. This project follows
 - Encrypted storage for OpenAI-compatible API keys through Electron `safeStorage`
 - Strict release allowlist that excludes local profiles, credentials, cookies, downloads, logs, and generated runtime state
 
-[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/SketchOTP/ATLAS-Browser/releases/tag/v0.1.0

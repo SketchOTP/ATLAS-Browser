@@ -1,4 +1,5 @@
 const seed = { projects: [], globalBookmarks: [], agentSessions: [], notifications: [], calendarEvents: [] };
+const makeId = (prefix) => `${prefix}-${Date.now()}-${globalThis.crypto.randomUUID()}`;
 
 const storeKey = 'atlas-browser-workspace-v1';
 const profileStoreKey = 'atlas-browser-profiles-v1';
@@ -46,14 +47,14 @@ function normalizeWorkspace(workspace) {
       tab.favicon ||= '';
     });
     project.bookmarks.forEach((bookmark) => {
-      bookmark.id ||= `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      bookmark.id ||= makeId('bookmark');
       bookmark.title ||= 'Bookmark';
       bookmark.url ||= '';
       bookmark.color = /^#[0-9a-f]{6}$/i.test(String(bookmark.color || '')) ? String(bookmark.color).toUpperCase() : '#B026FF';
       bookmark.textColor = /^#[0-9a-f]{6}$/i.test(String(bookmark.textColor || '')) ? String(bookmark.textColor).toUpperCase() : '';
     });
     project.resources.forEach((resource) => {
-      resource.id ||= `resource-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      resource.id ||= makeId('resource');
       if (!resource.type) {
         resource.type = resource.url ? 'url' : 'text';
         if (resource.type === 'text') resource.text = resource.text || resource.meta || '';
@@ -61,7 +62,7 @@ function normalizeWorkspace(workspace) {
       resource.createdAt ||= new Date().toISOString();
     });
     project.downloads.forEach((download) => {
-      download.id ||= `download-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      download.id ||= makeId('download');
       download.fileName ||= 'Downloaded file';
       download.state ||= 'completed';
       download.createdAt ||= new Date().toISOString();
@@ -70,7 +71,7 @@ function normalizeWorkspace(workspace) {
       download.percent = Math.min(100, Math.max(0, Number(download.percent) || (download.state === 'completed' ? 100 : 0)));
     });
     project.notes.forEach((note) => {
-      note.id ||= `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      note.id ||= makeId('note');
       note.title ||= 'Untitled note';
       note.html ||= String(note.body || '')
         .replace(/&/g, '&amp;')
@@ -81,13 +82,13 @@ function normalizeWorkspace(workspace) {
       note.updatedAt ||= note.createdAt;
     });
     project.agentMessages.forEach((message) => {
-      message.id ||= `message-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      message.id ||= makeId('message');
       message.role = message.role === 'assistant' ? 'assistant' : 'user';
       message.text ||= '';
       message.createdAt ||= new Date().toISOString();
     });
     project.tasks.forEach((task) => {
-      task.id ||= `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      task.id ||= makeId('task');
       task.priority ||= 'medium';
       task.dueAt ||= '';
       task.notifiedAt ||= '';
@@ -101,7 +102,7 @@ function normalizeWorkspace(workspace) {
     project.tasks = project.tasks.filter((task) => !task.done || Date.now() - new Date(task.completedAt).getTime() < completedTaskRetentionMs);
   });
   normalized.agentSessions.forEach((session) => {
-    session.id ||= `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    session.id ||= makeId('agent-session');
     session.title ||= 'New conversation';
     session.titleEdited = Boolean(session.titleEdited);
     session.scopeProjectId ||= null;
@@ -114,7 +115,7 @@ function normalizeWorkspace(workspace) {
     session.toolCatalogVersion = Number.isInteger(session.toolCatalogVersion) ? session.toolCatalogVersion : 0;
   });
   normalized.calendarEvents.forEach((event) => {
-    event.id ||= `calendar-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    event.id ||= makeId('calendar-event');
     event.title ||= 'Untitled event';
     event.projectId = normalized.projects.some((project) => project.id === event.projectId) ? event.projectId : '';
     event.taskId ||= '';
@@ -136,7 +137,7 @@ function normalizeWorkspace(workspace) {
   });
   normalized.globalBookmarks = [...shared.values()];
   normalized.projects.forEach((project) => normalized.globalBookmarks.forEach((globalBookmark) => {
-    if (!project.bookmarks.some((bookmark) => bookmark.sharedId === globalBookmark.sharedId)) project.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, ...globalBookmark });
+    if (!project.bookmarks.some((bookmark) => bookmark.sharedId === globalBookmark.sharedId)) project.bookmarks.push({ id: makeId('bookmark'), ...globalBookmark });
   }));
   return normalized;
 }
@@ -393,12 +394,7 @@ async function updateWebsiteSurface(tab) {
   desktop.classList.add('hidden');
   frame.classList.remove('hidden');
   if (frame.src !== tab.url) frame.src = tab.url;
-  try {
-    const result = await fetch(`/api/embed-check?url=${encodeURIComponent(tab.url)}`).then((response) => response.json());
-    if (currentTab()?.id === tab.id) fallback.classList.toggle('show', result.blocked);
-  } catch {
-    if (currentTab()?.id === tab.id) fallback.classList.add('show');
-  }
+  fallback.classList.add('show');
 }
 
 function renderProjects() {
@@ -1570,7 +1566,7 @@ function saveWebSelectionToLibrary(payload) {
   const sourceUrl = String(payload?.url || currentTab()?.url || '').trim();
   const pageTitle = String(payload?.title || currentTab()?.title || 'Web excerpt').trim();
   project.resources.unshift({
-    id: `resource-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: makeId('resource'),
     type: 'text',
     title: `${pageTitle} · ${savedDate}`.slice(0, 140),
     text: `Saved: ${savedDate}\nSource URL: ${sourceUrl || 'Unknown'}\n\n${selectedText}`,
@@ -1764,14 +1760,14 @@ function checkDueTasks() {
       const reminderTime = task.reminderAt ? new Date(task.reminderAt).getTime() : NaN;
       if (!task.calendarEventId && !task.done && !task.remindedAt && Number.isFinite(reminderTime) && reminderTime <= now) {
         task.remindedAt = new Date().toISOString();
-        workspace.notifications.unshift({ id: `notification-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, projectId: project.id, taskId: task.id, title: `[${project.name}] ${task.title}`, message: `Task reminder${task.dueAt ? ` · Due ${new Date(task.dueAt).toLocaleString()}` : ''}`, createdAt: new Date().toISOString(), read: false });
+        workspace.notifications.unshift({ id: makeId('notification'), projectId: project.id, taskId: task.id, title: `[${project.name}] ${task.title}`, message: `Task reminder${task.dueAt ? ` · Due ${new Date(task.dueAt).toLocaleString()}` : ''}`, createdAt: new Date().toISOString(), read: false });
         changed = true;
         if (profile.id === profileStore.activeProfileId) { activeDue = true; activeDueCount += 1; }
       }
       const dueTime = task.dueAt ? new Date(task.dueAt).getTime() : NaN;
       if (task.done || task.notifiedAt || !Number.isFinite(dueTime) || dueTime > now) return;
       task.notifiedAt = new Date().toISOString();
-      workspace.notifications.unshift({ id: `notification-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, projectId: project.id, taskId: task.id, title: task.title, message: `Due in ${project.name}`, createdAt: new Date().toISOString(), read: false });
+      workspace.notifications.unshift({ id: makeId('notification'), projectId: project.id, taskId: task.id, title: task.title, message: `Due in ${project.name}`, createdAt: new Date().toISOString(), read: false });
       changed = true;
       if (profile.id === profileStore.activeProfileId) { activeDue = true; activeDueCount += 1; }
       });
@@ -1781,7 +1777,7 @@ function checkDueTasks() {
       if (event.remindedAt || !Number.isFinite(reminderTime) || reminderTime > now) return;
       const project = workspace.projects.find((entry) => entry.id === event.projectId);
       event.remindedAt = new Date().toISOString();
-      workspace.notifications.unshift({ id: `notification-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, projectId: event.projectId || '', eventId: event.id, title: project ? `[${project.name}] ${event.title}` : event.title, message: `Event reminder · ${new Date(event.startAt).toLocaleString()}`, createdAt: new Date().toISOString(), read: false });
+      workspace.notifications.unshift({ id: makeId('notification'), projectId: event.projectId || '', eventId: event.id, title: project ? `[${project.name}] ${event.title}` : event.title, message: `Event reminder · ${new Date(event.startAt).toLocaleString()}`, createdAt: new Date().toISOString(), read: false });
       changed = true;
       if (profile.id === profileStore.activeProfileId) { activeDue = true; activeDueCount += 1; }
     });
@@ -1865,7 +1861,7 @@ function syncCalendarEventTask(event, previousProjectId = '') {
     removeLinkedCalendarTask(event);
     linked = null;
   }
-  const task = linked?.task || { id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, due: '', priority: 'medium', note: '', reminderAt: '', remindedAt: '', done: false, completedAt: '', notifiedAt: '', calendarEventId: event.id };
+  const task = linked?.task || { id: makeId('task'), due: '', priority: 'medium', note: '', reminderAt: '', remindedAt: '', done: false, completedAt: '', notifiedAt: '', calendarEventId: event.id };
   if (task.dueAt !== event.startAt) task.notifiedAt = '';
   if (task.reminderAt !== event.reminderAt) task.remindedAt = '';
   Object.assign(task, { title: event.title, dueAt: event.startAt, reminderAt: event.reminderAt || '', priority: event.priority || 'medium', note: event.note || '', calendarEventId: event.id });
@@ -1989,7 +1985,7 @@ function saveCalendarEvent(event) {
   const previousProjectId = item?.projectId || '';
   const previousReminderAt = item?.reminderAt || '';
   if (!item) {
-    item = { id: `calendar-event-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, taskId: '', remindedAt: '' };
+    item = { id: makeId('calendar-event'), taskId: '', remindedAt: '' };
     state.calendarEvents.push(item);
   }
   Object.assign(item, { title, projectId: $('calendar-event-project').value, startAt, reminderAt, priority: $('calendar-event-priority').value, color: normalizeHexColor($('calendar-event-color-hex').value), note: $('calendar-event-note').value.trim() });
@@ -2141,7 +2137,7 @@ function saveProjectEditor(event) {
     if (image) item.image = image;
     toast('Project updated');
   } else {
-    const item = { id: `project-${Date.now()}`, name, image, iconMode: projectIconMode, emoji: editingProjectEmoji, color, textColor, status, description: 'A project workspace.', tabs: [], bookmarks: state.globalBookmarks.map((bookmark) => ({ ...bookmark, id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })), resources: [], downloads: [], notes: [], tasks: [] };
+    const item = { id: makeId('project'), name, image, iconMode: projectIconMode, emoji: editingProjectEmoji, color, textColor, status, description: 'A project workspace.', tabs: [], bookmarks: state.globalBookmarks.map((bookmark) => ({ ...bookmark, id: makeId('bookmark') })), resources: [], downloads: [], notes: [], tasks: [] };
     state.projects.unshift(item);
     activeProjectId = item.id;
     activeTabId = undefined;
@@ -2206,7 +2202,7 @@ function openUrlInCurrentTab(value, message = 'Opening website') {
   if (!item || !url) return;
   let tab = currentTab();
   if (!tab) {
-    tab = { id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title: 'New tab', icon: '🌐', iconMode: 'emoji', favicon: '', url };
+    tab = { id: makeId('tab'), title: 'New tab', icon: '🌐', iconMode: 'emoji', favicon: '', url };
     item.tabs.push(tab);
     activeTabId = tab.id;
   } else {
@@ -2225,7 +2221,7 @@ function addTab() {
   const defaultUrl = activeProfile().settings.defaultPageUrl ? normalizeAddress(activeProfile().settings.defaultPageUrl) : '';
   let title = 'New tab';
   if (defaultUrl) { try { title = new URL(defaultUrl).hostname.replace(/^www\./, '') || title; } catch {} }
-  const tab = { id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title, icon: '🌐', iconMode: 'emoji', favicon: '', url: defaultUrl };
+  const tab = { id: makeId('tab'), title, icon: '🌐', iconMode: 'emoji', favicon: '', url: defaultUrl };
   item.tabs.push(tab);
   activeTabId = tab.id;
   activeView = 'browser';
@@ -2241,7 +2237,7 @@ function openExternalUrlInNewTab(value, context = null) {
   if (!item || !url) return;
   let title = 'New tab';
   try { title = new URL(url).hostname.replace(/^www\./, '') || title; } catch {}
-  const tab = { id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title, icon: '🌐', iconMode: 'emoji', favicon: '', url };
+  const tab = { id: makeId('tab'), title, icon: '🌐', iconMode: 'emoji', favicon: '', url };
   item.tabs.push(tab);
   activeProjectId = item.id;
   activeTabId = tab.id;
@@ -2291,7 +2287,7 @@ function saveBookmarkEditor(event) {
   if (!url) return $('bookmark-url').focus();
   const existing = project.bookmarks.find((bookmark) => bookmark.id === editingBookmarkId);
   if (applyToAllProjects) {
-    const sharedId = existing?.sharedId || `shared-bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const sharedId = existing?.sharedId || makeId('shared-bookmark');
     const globalBookmark = state.globalBookmarks.find((bookmark) => bookmark.sharedId === sharedId);
     if (globalBookmark) Object.assign(globalBookmark, { title, url, color, textColor, sharedId });
     else state.globalBookmarks.push({ sharedId, title, url, color, textColor });
@@ -2301,10 +2297,10 @@ function saveBookmarkEditor(event) {
         ? existing
         : targetProject.bookmarks.find((bookmark) => bookmark.sharedId === sharedId);
       if (targetBookmark) Object.assign(targetBookmark, { title, url, color, textColor, sharedId });
-      else targetProject.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, sharedId, title, url, color, textColor });
+      else targetProject.bookmarks.push({ id: makeId('bookmark'), sharedId, title, url, color, textColor });
     });
   } else if (existing) Object.assign(existing, { title, url, color, textColor });
-  else project.bookmarks.push({ id: `bookmark-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title, url, color, textColor });
+  else project.bookmarks.push({ id: makeId('bookmark'), title, url, color, textColor });
   save();
   closeBookmarkEditor();
   renderBookmarks(project);
@@ -2394,7 +2390,7 @@ function applyNoteCommand(command, value = null) {
 
 function createAgentSession(scopeProjectId = null) {
   if (conversationMode.active) stopConversationMode();
-  const session = { id: `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, threadId: '', providerId: activeProfile().settings.agentProvider.id, toolCatalogVersion: Number(agentRuntimeStatus.toolCatalogVersion) || 0, title: 'New conversation', titleEdited: false, scopeProjectId: scopeProjectId || null, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
+  const session = { id: makeId('agent-session'), threadId: '', providerId: activeProfile().settings.agentProvider.id, toolCatalogVersion: Number(agentRuntimeStatus.toolCatalogVersion) || 0, title: 'New conversation', titleEdited: false, scopeProjectId: scopeProjectId || null, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
   state.agentSessions.push(session);
   activeAgentSessionId = session.id;
   save();
@@ -2442,7 +2438,7 @@ function ensureTrayAgentSession() {
   if (!project) return null;
   let session = trayAgentSession(project.id);
   if (!session) {
-    session = { id: `agent-session-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, threadId: '', providerId: activeProfile().settings.agentProvider.id, toolCatalogVersion: Number(agentRuntimeStatus.toolCatalogVersion) || 0, title: 'New conversation', titleEdited: false, scopeProjectId: project.id, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
+    session = { id: makeId('agent-session'), threadId: '', providerId: activeProfile().settings.agentProvider.id, toolCatalogVersion: Number(agentRuntimeStatus.toolCatalogVersion) || 0, title: 'New conversation', titleEdited: false, scopeProjectId: project.id, messages: [], updatedAt: new Date().toISOString(), tokenUsage: null, busy: false, compacting: false };
     state.agentSessions.push(session);
   }
   activeAgentSessionId = session.id;
@@ -2664,7 +2660,7 @@ async function executeAtlasAgentTool(request) {
     const project = requireProject();
     const url = normalizeAddress(args.url);
     if (!url) throw new Error('A valid URL is required.');
-    const tab = { id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title: args.title || new URL(url).hostname, icon: args.emoji || '🌐', iconMode: 'emoji', favicon: '', url };
+    const tab = { id: makeId('tab'), title: args.title || new URL(url).hostname, icon: args.emoji || '🌐', iconMode: 'emoji', favicon: '', url };
     project.tabs.push(tab); activeProjectId = project.id; activeTabId = tab.id; activeView = 'browser'; save(); render();
     return { success: true, projectId: project.id, tab };
   }
@@ -2691,7 +2687,7 @@ async function executeAtlasAgentTool(request) {
   if (request.tool === 'atlas_create_task') {
     const project = requireProject();
     if (args.reminderAt && args.dueAt && new Date(args.reminderAt) > new Date(args.dueAt)) throw new Error('Set the reminder before the task is due.');
-    const task = { id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title: String(args.title).trim(), priority: args.priority || 'medium', dueAt: args.dueAt || '', reminderAt: args.reminderAt || '', note: args.note || '', notifiedAt: '', remindedAt: '', done: false, completedAt: '', calendarEventId: '' };
+    const task = { id: makeId('task'), title: String(args.title).trim(), priority: args.priority || 'medium', dueAt: args.dueAt || '', reminderAt: args.reminderAt || '', note: args.note || '', notifiedAt: '', remindedAt: '', done: false, completedAt: '', calendarEventId: '' };
     project.tasks.push(task); save(); render(); return { success: true, task };
   }
   if (request.tool === 'atlas_update_task') {
