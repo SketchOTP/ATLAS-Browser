@@ -57,11 +57,15 @@ win:
     - portable
 
 nsis:
+  artifactName: ATLAS-${version}-windows-${arch}-installer.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: ATLAS
+
+portable:
+  artifactName: ATLAS-${version}-windows-${arch}-portable.${ext}
 
 publish:
   provider: github

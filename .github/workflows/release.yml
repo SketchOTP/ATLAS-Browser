@@ -55,7 +55,7 @@ jobs:
       - uses: actions/attest-build-provenance@v3
         with:
           subject-path: ${{ matrix.provenance }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: atlas-${{ matrix.artifact }}
           path: |
@@ -72,7 +72,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true

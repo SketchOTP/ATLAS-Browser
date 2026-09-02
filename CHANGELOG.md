@@ -13,6 +13,14 @@ All notable changes to ATLAS are documented here. This project follows
 - Profile export, import, and encrypted backup
 - Broader accessibility and platform certification
 
+## [0.1.1] - 2026-09-01
+
+### Fixed
+
+- Publish the Windows installer and portable build under distinct filenames so both artifacts are retained in GitHub Releases
+- Disable electron-builder's implicit tag publishing so the audited release workflow is the only artifact publisher
+- Use platform-native temporary directories during packaged-app verification on Windows
+
 ## [0.1.0] - 2026-09-01
 
 ### Added
@@ -35,5 +43,6 @@ All notable changes to ATLAS are documented here. This project follows
 - Encrypted storage for OpenAI-compatible API keys through Electron `safeStorage`
 - Strict release allowlist that excludes local profiles, credentials, cookies, downloads, logs, and generated runtime state
 
-[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/SketchOTP/ATLAS-Browser/releases/tag/v0.1.0
