@@ -52,7 +52,7 @@ jobs:
       - name: Smoke-test Linux AppImage
         if: runner.os == 'Linux'
         run: xvfb-run -a pnpm run smoke:linux -- release/*.AppImage
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ matrix.provenance }}
       - uses: actions/upload-artifact@v7
