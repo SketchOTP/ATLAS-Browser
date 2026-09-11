@@ -40,7 +40,7 @@ button { cursor: pointer; }
   flex-direction: column;
   min-height: 0;
   padding: 28px 17px 17px;
-  overflow-y: auto;
+  overflow: hidden;
   background: #f4f3f7;
   border-right: 1px solid var(--line);
 }
@@ -130,7 +130,23 @@ body.resizing-sidebar * { cursor: col-resize !important; }
   font-size: 11px;
 }
 
-.projects { display: flex; flex-direction: column; gap: 5px; }
+/* Only the middle project list scrolls; sidebar controls stay in place. */
+.project-sidebar > :not(.projects) { flex-shrink: 0; }
+.projects {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d84bff transparent;
+  padding: 10px;
+  margin: -10px;
+}
+.projects > * { flex-shrink: 0; }
 
 .project-row {
   display: flex;

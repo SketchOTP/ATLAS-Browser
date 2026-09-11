@@ -13,6 +13,13 @@ All notable changes to ATLAS are documented here. This project follows
 - Profile export, import, and encrypted backup
 - Broader accessibility and platform certification
 
+## [0.1.4] - 2026-09-10
+
+### Fixed
+
+- Scroll only the project list when the sidebar fills up. The ATLAS title, project search, navigation buttons, and Agent Usage Remaining bar stay in place while project rows retain their full height.
+- Keep project-list scrolling contained, with a thin neon-purple scrollbar and space around selected project highlights.
+
 ## [0.1.3] - 2026-09-10
 
 ### Fixed
@@ -62,7 +69,8 @@ All notable changes to ATLAS are documented here. This project follows
 - Encrypted storage for OpenAI-compatible API keys through Electron `safeStorage`
 - Strict release allowlist that excludes local profiles, credentials, cookies, downloads, logs, and generated runtime state
 
-[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.0...v0.1.1

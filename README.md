@@ -56,7 +56,7 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 ### Project workspaces
 
 - Custom project display name, status, neon color, uploaded image, or emoji
-- Drag-and-drop project ordering and a resizable project sidebar
+- Drag-and-drop project ordering and a resizable project sidebar; only the project list scrolls, keeping the title, search, navigation, and usage bar in place
 - Project-specific tabs, bookmarks, tasks, notes, library items, and agent context
 - Separate local profiles identified by display name and email
 - Profile-scoped persistent website sessions: Google and other OAuth sign-ins are reusable across that profile's projects, tabs, and sign-in popups, but cookies and site storage are never shared with another ATLAS profile
