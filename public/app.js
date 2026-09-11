@@ -8,6 +8,7 @@ const completedTaskRetentionMs = 3 * 24 * 60 * 60 * 1000;
 const legacyProjectColors = { violet: '#B026FF', cyan: '#00E5FF', amber: '#FFB000' };
 const neonColorMigrations = { '#7256D6': '#B026FF', '#147D92': '#00E5FF', '#A76A18': '#FFB000' };
 const neonProjectPalette = ['#B026FF', '#00E5FF', '#FF2BD6', '#39FF88', '#FFB000', '#7A5CFF', '#FF375F', '#00F0A8'];
+const defaultAccentColor = '#D84BFF';
 const legacyWorkspace = JSON.parse(localStorage.getItem(storeKey) || 'null') || structuredClone(seed);
 let profileStore = JSON.parse(localStorage.getItem(profileStoreKey) || 'null');
 const freshInstall = !profileStore?.profiles?.length;
@@ -43,7 +44,8 @@ function normalizeWorkspace(workspace) {
     project.agentMessages ||= [];
     project.tabs.forEach((tab) => {
       if (!tab.icon || /^https?:\/\//.test(tab.icon) || !/\p{Extended_Pictographic}/u.test(tab.icon)) tab.icon = '🌐';
-      tab.iconMode = tab.iconMode === 'favicon' ? 'favicon' : 'emoji';
+      // Older tabs keep their explicit icon choice. Tabs without a saved mode use the site's favicon.
+      tab.iconMode = tab.iconMode === 'emoji' ? 'emoji' : 'favicon';
       tab.favicon ||= '';
     });
     project.bookmarks.forEach((bookmark) => {
@@ -147,16 +149,29 @@ profileStore.profiles.forEach((profile) => {
   profile.email ||= 'local@atlas.invalid';
   profile.image ||= '';
   const existingWalkthroughState = profile.settings?.walkthroughCompleted;
-  profile.settings = { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', websiteMicrophoneEnabled: true, websiteCameraEnabled: true, agentProvider: { id: 'codex', executable: 'codex', model: '', effort: 'medium', usageMode: 'native', secretId: `${profile.id}:codex` }, ...(profile.settings || {}) };
+  profile.settings = { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', accentColor: defaultAccentColor, privacyMode: 'balanced', websiteMicrophoneEnabled: true, websiteCameraEnabled: true, agentProvider: { id: 'codex', executable: 'codex', model: '', effort: 'medium', usageMode: 'native', secretId: `${profile.id}:codex` }, ...(profile.settings || {}) };
   profile.settings.walkthroughCompleted = existingWalkthroughState === undefined ? !freshInstall : Boolean(existingWalkthroughState);
   profile.settings.agentProvider = { id: 'codex', executable: 'codex', model: '', effort: profile.settings.reasoningEffort || 'medium', usageMode: 'native', secretId: `${profile.id}:codex`, ...(profile.settings.agentProvider || {}) };
   profile.settings.defaultPageUrl = String(profile.settings.defaultPageUrl || '').trim();
+  profile.settings.accentColor = /^#[0-9a-f]{6}$/i.test(String(profile.settings.accentColor || '')) ? String(profile.settings.accentColor).toUpperCase() : defaultAccentColor;
   profile.settings.sidebarWidth = Math.min(460, Math.max(210, Number(profile.settings.sidebarWidth) || 268));
   profile.settings.agentTrayHeight = Math.min(420, Math.max(72, Number(profile.settings.agentTrayHeight) || 76));
   if (!['low', 'medium', 'high', 'xhigh'].includes(profile.settings.reasoningEffort)) profile.settings.reasoningEffort = 'medium';
   if (!['off', 'balanced', 'strict'].includes(profile.settings.privacyMode)) profile.settings.privacyMode = 'balanced';
   profile.workspace = normalizeWorkspace(profile.workspace);
 });
+
+function accentRgb(color) {
+  const normalized = String(color || defaultAccentColor).replace('#', '');
+  return `${parseInt(normalized.slice(0, 2), 16)} ${parseInt(normalized.slice(2, 4), 16)} ${parseInt(normalized.slice(4, 6), 16)}`;
+}
+
+function applyAccentColor(value) {
+  const color = /^#[0-9a-f]{6}$/i.test(String(value || '').trim()) ? String(value).toUpperCase() : defaultAccentColor;
+  document.documentElement.style.setProperty('--atlas-accent', color);
+  document.documentElement.style.setProperty('--atlas-accent-rgb', accentRgb(color));
+  return color;
+}
 if (!profileStore.profiles.some((profile) => profile.id === profileStore.activeProfileId)) profileStore.activeProfileId = profileStore.profiles[0].id;
 const activeProfile = () => profileStore.profiles.find((profile) => profile.id === profileStore.activeProfileId);
 let state = activeProfile().workspace;
@@ -1398,6 +1413,7 @@ function switchProfile(profileId) {
   activeTabId = state.projects.find((project) => project.id === activeProjectId)?.tabs.some((tab) => tab.id === state.session?.activeTabId) ? state.session.activeTabId : state.projects.find((project) => project.id === activeProjectId)?.tabs[0]?.id;
   activeView = validViews.has(state.session?.activeView) ? state.session.activeView : 'browser';
   activeAgentSessionId = state.agentSessions.some((session) => session.id === state.session?.activeAgentSessionId) ? state.session.activeAgentSessionId : state.agentSessions[0]?.id;
+  applyAccentColor(profile.settings.accentColor);
   applySidebarWidth(profile.settings.sidebarWidth);
   applyAgentTrayHeight(profile.settings.agentTrayHeight);
   closeNotifications();
@@ -1437,7 +1453,7 @@ function saveProfileEditor(event) {
     toast('Profile updated');
   } else {
     const id = `profile-${Date.now()}`;
-    const profile = { id, name, email, image, settings: { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', privacyMode: 'balanced', websiteMicrophoneEnabled: true, websiteCameraEnabled: true, walkthroughCompleted: false, agentProvider: { id: 'codex', executable: 'codex', model: '', effort: 'medium', usageMode: 'native', secretId: `${id}:codex` } }, workspace: { projects: [], globalBookmarks: [], agentSessions: [], notifications: [], calendarEvents: [] } };
+    const profile = { id, name, email, image, settings: { compactionThreshold: 0.78, reasoningEffort: 'medium', ttsVoice: 'af_heart', ttsSpeed: 1, sttModel: 'base.en', autoSpeak: false, sidebarWidth: 268, agentTrayHeight: 76, defaultPageUrl: '', accentColor: defaultAccentColor, privacyMode: 'balanced', websiteMicrophoneEnabled: true, websiteCameraEnabled: true, walkthroughCompleted: false, agentProvider: { id: 'codex', executable: 'codex', model: '', effort: 'medium', usageMode: 'native', secretId: `${id}:codex` } }, workspace: { projects: [], globalBookmarks: [], agentSessions: [], notifications: [], calendarEvents: [] } };
     profileStore.profiles.push(profile);
     saveProfiles();
     switchProfile(profile.id);
@@ -2202,7 +2218,7 @@ function openUrlInCurrentTab(value, message = 'Opening website') {
   if (!item || !url) return;
   let tab = currentTab();
   if (!tab) {
-    tab = { id: makeId('tab'), title: 'New tab', icon: '🌐', iconMode: 'emoji', favicon: '', url };
+    tab = { id: makeId('tab'), title: 'New tab', icon: '🌐', iconMode: 'favicon', favicon: '', url };
     item.tabs.push(tab);
     activeTabId = tab.id;
   } else {
@@ -2221,7 +2237,7 @@ function addTab() {
   const defaultUrl = activeProfile().settings.defaultPageUrl ? normalizeAddress(activeProfile().settings.defaultPageUrl) : '';
   let title = 'New tab';
   if (defaultUrl) { try { title = new URL(defaultUrl).hostname.replace(/^www\./, '') || title; } catch {} }
-  const tab = { id: makeId('tab'), title, icon: '🌐', iconMode: 'emoji', favicon: '', url: defaultUrl };
+  const tab = { id: makeId('tab'), title, icon: '🌐', iconMode: 'favicon', favicon: '', url: defaultUrl };
   item.tabs.push(tab);
   activeTabId = tab.id;
   activeView = 'browser';
@@ -2237,7 +2253,7 @@ function openExternalUrlInNewTab(value, context = null) {
   if (!item || !url) return;
   let title = 'New tab';
   try { title = new URL(url).hostname.replace(/^www\./, '') || title; } catch {}
-  const tab = { id: makeId('tab'), title, icon: '🌐', iconMode: 'emoji', favicon: '', url };
+  const tab = { id: makeId('tab'), title, icon: '🌐', iconMode: 'favicon', favicon: '', url };
   item.tabs.push(tab);
   activeProjectId = item.id;
   activeTabId = tab.id;
@@ -2660,7 +2676,7 @@ async function executeAtlasAgentTool(request) {
     const project = requireProject();
     const url = normalizeAddress(args.url);
     if (!url) throw new Error('A valid URL is required.');
-    const tab = { id: makeId('tab'), title: args.title || new URL(url).hostname, icon: args.emoji || '🌐', iconMode: 'emoji', favicon: '', url };
+    const tab = { id: makeId('tab'), title: args.title || new URL(url).hostname, icon: args.emoji || '🌐', iconMode: args.emoji ? 'emoji' : 'favicon', favicon: '', url };
     project.tabs.push(tab); activeProjectId = project.id; activeTabId = tab.id; activeView = 'browser'; save(); render();
     return { success: true, projectId: project.id, tab };
   }
@@ -2874,6 +2890,8 @@ async function configureActiveAgentProvider() {
 
 function openSettings() {
   $('default-page-url').value = activeProfile().settings.defaultPageUrl || '';
+  $('accent-color').value = applyAccentColor(activeProfile().settings.accentColor);
+  $('accent-color-hex').value = $('accent-color').value;
   $('website-microphone-enabled').checked = activeProfile().settings.websiteMicrophoneEnabled !== false;
   $('website-camera-enabled').checked = activeProfile().settings.websiteCameraEnabled !== false;
   $('privacy-mode').value = activeProfile().settings.privacyMode || 'balanced';
@@ -2889,14 +2907,14 @@ function openSettings() {
   requestAnimationFrame(syncDesktopBounds);
 }
 
-function closeSettings() { $('settings-modal').classList.add('hidden'); configureActiveAgentProvider(); requestAnimationFrame(syncDesktopBounds); }
+function closeSettings() { applyAccentColor(activeProfile().settings.accentColor); $('settings-modal').classList.add('hidden'); configureActiveAgentProvider(); requestAnimationFrame(syncDesktopBounds); }
 
 async function saveSettings(event) {
   event.preventDefault();
   const configuredDefault = $('default-page-url').value.trim();
   const previousProviderId = activeProfile().settings.agentProvider.id;
   const agentProvider = providerConfigFromForm();
-  activeProfile().settings = { ...activeProfile().settings, defaultPageUrl: configuredDefault ? normalizeAddress(configuredDefault) : '', privacyMode: $('privacy-mode').value || 'balanced', websiteMicrophoneEnabled: $('website-microphone-enabled').checked, websiteCameraEnabled: $('website-camera-enabled').checked, compactionThreshold: Number($('agent-compaction-threshold').value), reasoningEffort: agentProvider.effort, agentProvider, ttsVoice: $('tts-voice').value || 'af_heart', ttsSpeed: Number($('tts-speed').value) || 1, sttModel: $('stt-model').value, autoSpeak: $('auto-speak').checked, sidebarWidth: activeProfile().settings.sidebarWidth || 268, agentTrayHeight: activeProfile().settings.agentTrayHeight || 76 };
+  activeProfile().settings = { ...activeProfile().settings, defaultPageUrl: configuredDefault ? normalizeAddress(configuredDefault) : '', accentColor: applyAccentColor($('accent-color').value), privacyMode: $('privacy-mode').value || 'balanced', websiteMicrophoneEnabled: $('website-microphone-enabled').checked, websiteCameraEnabled: $('website-camera-enabled').checked, compactionThreshold: Number($('agent-compaction-threshold').value), reasoningEffort: agentProvider.effort, agentProvider, ttsVoice: $('tts-voice').value || 'af_heart', ttsSpeed: Number($('tts-speed').value) || 1, sttModel: $('stt-model').value, autoSpeak: $('auto-speak').checked, sidebarWidth: activeProfile().settings.sidebarWidth || 268, agentTrayHeight: activeProfile().settings.agentTrayHeight || 76 };
   const secret = $('agent-provider-api-key').value;
   if (secret && isElectron) await window.atlasBrowser.saveAgentProviderSecret({ secretId: agentProvider.secretId, value: secret });
   saveProfiles();
@@ -2911,7 +2929,7 @@ const walkthroughSteps = [
   { selector: '.project-sidebar', title: 'Projects keep work separated', copy: 'Each project owns its tabs, bookmarks, tasks, notes, and library. Resize this sidebar by dragging its right edge.' },
   { selector: '#project-filter', title: 'Find or create a project', copy: 'Search your projects here. Use the neon plus in the tool row to create one, then choose its name, status, color, image, or emoji.' },
   { selector: '.project-quick-menu', title: 'Project tools', copy: 'These buttons open Browser, Tasks, Agent, Library, and Notes for the selected project. Hover any icon to see its name.' },
-  { selector: '.tabbar', title: 'Website tabs', copy: 'Tabs are real websites. Click a tab icon to choose from the searchable emoji library or switch back to the website favicon.' },
+  { selector: '.tabbar', title: 'Website tabs', copy: 'Tabs are real websites. Each one uses its website favicon by default; click an icon to choose a custom emoji instead.' },
   { selector: '.browser-toolbar', title: 'Browse and save', copy: 'Enter a URL or search here. Save to Library adds the current page to the active project’s Library.' },
   { selector: '#download-button', title: 'Project downloads', copy: 'Downloads are saved to disk and automatically added to the current project’s Library. This popup only shows that project’s download activity; dismissing an item never deletes the file or Library resource.' },
   { selector: '#bookmarks-bar', title: 'Project bookmarks', copy: 'Bookmarks change with each project. A bookmark can also be shared with every project, including projects created later.' },
@@ -3365,6 +3383,23 @@ $('calendar-event-name').addEventListener('input', (event) => { $('calendar-even
 bindColorPicker('calendar-event-color', setCalendarEventColor);
 $('settings-button').addEventListener('click', openSettings);
 $('settings-form').addEventListener('submit', saveSettings);
+$('accent-color').addEventListener('input', (event) => {
+  const color = applyAccentColor(event.target.value);
+  $('accent-color-hex').value = color;
+});
+$('accent-color-hex').addEventListener('input', (event) => {
+  const value = event.target.value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(value)) {
+    const color = applyAccentColor(value);
+    $('accent-color').value = color;
+    event.target.value = color;
+  }
+});
+$('accent-color-hex').addEventListener('blur', () => {
+  const color = applyAccentColor($('accent-color-hex').value);
+  $('accent-color').value = color;
+  $('accent-color-hex').value = color;
+});
 $('agent-provider').addEventListener('change', () => populateProviderForm(activeProviderTemplate($('agent-provider').value)));
 $('agent-usage-mode').addEventListener('change', () => {
   $('agent-usage-command-field').classList.toggle('hidden', $('agent-usage-mode').value !== 'command');
@@ -3639,6 +3674,7 @@ if (isElectron) {
   document.querySelector('.workspace').addEventListener('scroll', syncDesktopBounds, { passive: true });
 }
 if (!state.agentSessions.length) createAgentSession();
+applyAccentColor(activeProfile().settings.accentColor);
 applySidebarWidth(activeProfile().settings.sidebarWidth);
 applyAgentTrayHeight(activeProfile().settings.agentTrayHeight);
 render();

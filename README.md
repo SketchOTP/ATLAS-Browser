@@ -67,7 +67,8 @@ Traditional browsers remember where you went. ATLAS is intended to remember **wh
 - Real websites rendered in an isolated Electron `WebContentsView`
 - Visible sandboxed website popups that preserve opener state and the shared website session for supported OAuth sign-in flows
 - Hard profile/project/tab browser-history isolation: every open tab owns a separately keyed Electron website view and Back/Forward stack, inactive views cannot receive browser or agent commands, late navigation metadata is discarded outside its originating context, and removed tabs/projects are destroyed rather than reassigned
-- Project-scoped website tabs with searchable emoji icons or automatic favicons
+- Project-scoped website tabs with website favicons by default and a searchable emoji override picker
+- Profile-specific custom accent color for ATLAS controls, highlights, glows, and progress indicators
 - Back, forward, reload, address/search input, and configurable new-tab page
 - Project bookmark bars with custom names and neon colors
 - Global bookmarks that automatically appear in existing and future projects
