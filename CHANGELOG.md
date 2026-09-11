@@ -13,6 +13,18 @@ All notable changes to ATLAS are documented here. This project follows
 - Profile export, import, and encrypted backup
 - Broader accessibility and platform certification
 
+## [0.1.3] - 2026-09-10
+
+### Fixed
+
+- Recover a missing GNOME X11 window-frame helper that can leave ATLAS running with an invisible window. Recovery checks the current desktop and display, uses only the system-owned helper, and limits attempts to three per five minutes.
+- Contain Codex App Server pipe and spawn failures so agent disconnections cannot crash the browser. Pending requests now fail cleanly, time out when necessary, and reconnect without interference from stale child-process events.
+
+### Security
+
+- Expand source and packaged-app audits to reject credential files, browser storage, agent caches, and database files. Packaged content is scanned for sensitive markers regardless of file size.
+- Preserve clean-install defaults: no maintainer profiles, projects, history, sign-ins, or settings are included in release artifacts.
+
 ## [0.1.2] - 2026-09-01
 
 ### Security
@@ -50,7 +62,8 @@ All notable changes to ATLAS are documented here. This project follows
 - Encrypted storage for OpenAI-compatible API keys through Electron `safeStorage`
 - Strict release allowlist that excludes local profiles, credentials, cookies, downloads, logs, and generated runtime state
 
-[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/SketchOTP/ATLAS-Browser/releases/tag/v0.1.0

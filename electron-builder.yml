@@ -8,6 +8,7 @@ directories:
 
 files:
   - electron-main.mjs
+  - linux-window-recovery.mjs
   - preload.cjs
   - server.mjs
   - agent-providers.mjs

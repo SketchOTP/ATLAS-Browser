@@ -5,7 +5,8 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
 const tracked = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root }).toString().split('\0').filter(Boolean);
 const forbiddenPaths = [
-  /(^|\/)(agent-secrets\.json|Cookies|Local State|Preferences|WebStorage|Session Storage)(\/|$)/i,
+  /(^|\/)(agent-secrets\.json|auth\.json|Cookies|Local State|Preferences|WebStorage|Session Storage|IndexedDB|Local Storage|\.codex|\.codex-atlas|graft)(\/|$)/i,
+  /\.(sqlite|sqlite3|db)(-wal|-shm|-journal)?$/i,
   /(^|\/)(node_modules|\.venv|work|downloads|release|dist)(\/|$)/i,
   /(^|\/)\.env(?:\.|$)/i,
   /(^|\/)Browser$/

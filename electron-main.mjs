@@ -16,6 +16,7 @@ import { browserContextKey, hideWebsiteView, normalizeBrowserContext, ProjectBro
 import { migrateLegacyWebsiteCookies, normalizeProfileId, profileSessionPartition } from './profile-website-sessions.mjs';
 import { isAllowedWebsiteUrl, websiteWindowRoute } from './website-window-routing.mjs';
 import { normalizeWebsiteMediaPermissions, websiteMediaPermissionAllowed } from './website-media-permissions.mjs';
+import { LinuxWindowRecovery } from './linux-window-recovery.mjs';
 
 let localServer;
 let browserWindow;
@@ -40,6 +41,7 @@ const localTts = new LocalTtsService();
 const appIconPath = fileURLToPath(new URL('./public/assets/atlas-mark.png', import.meta.url));
 const secretsPath = () => path.join(app.getPath('userData'), 'agent-secrets.json');
 const websiteSessionMigrationPath = () => path.join(app.getPath('userData'), 'profile-website-session-migration.json');
+const windowRecovery = new LinuxWindowRecovery({ log: (event) => logRuntimeEvent(event) });
 
 nativeTheme.themeSource = 'dark';
 const useLinuxSoftwareGraphics = process.platform === 'linux' && process.env.ATLAS_HARDWARE_ACCELERATION !== '1';
@@ -659,6 +661,7 @@ webUrlsFromArguments(process.argv).forEach((url) => pendingExternalUrls.push(url
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return;
   logRuntimeEvent('APP_READY', `version=${app.getVersion()}`);
+  windowRecovery.start();
   applicationMenu = buildApplicationMenu();
   Menu.setApplicationMenu(applicationMenu);
   return createWindow();
@@ -669,7 +672,10 @@ app.on('render-process-gone', (_event, webContents, details) => {
 app.on('child-process-gone', (_event, details) => {
   logRuntimeEvent('CHILD_PROCESS_GONE', `type=${details.type} reason=${details.reason} exit=${details.exitCode} name=${details.name || ''}`);
 });
-app.on('before-quit', () => logRuntimeEvent('APP_BEFORE_QUIT'));
+app.on('before-quit', () => {
+  windowRecovery.stop();
+  logRuntimeEvent('APP_BEFORE_QUIT');
+});
 app.on('will-quit', () => logRuntimeEvent('APP_WILL_QUIT'));
 app.on('quit', (_event, exitCode) => logRuntimeEvent('APP_QUIT', `code=${exitCode}`));
 app.on('window-all-closed', () => {

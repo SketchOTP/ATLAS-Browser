@@ -31,9 +31,9 @@ try {
   const failures = [];
   for (const file of files) {
     const relative = path.relative(extractRoot, file).split(path.sep).join('/');
-    if (/(^|\/)(Cookies|Local State|Preferences|WebStorage|Session Storage|Browser)(\/|$)/i.test(relative)) failures.push(`runtime state: ${relative}`);
-    if (fs.statSync(file).size > 2_000_000) continue;
-    const content = fs.readFileSync(file).toString('utf8');
+    if (/(^|\/)(Cookies|Local State|Preferences|WebStorage|Session Storage|IndexedDB|Local Storage|Browser|agent-secrets\.json|auth\.json|\.codex|\.codex-atlas|graft)(\/|$)/i.test(relative)
+      || /\.(sqlite|sqlite3|db)(-wal|-shm|-journal)?$/i.test(relative)) failures.push(`runtime state: ${relative}`);
+    const content = fs.readFileSync(file);
     for (const marker of forbidden) if (content.includes(marker)) failures.push(`sensitive marker ${JSON.stringify(marker)} in ${relative}`);
   }
   if (failures.length) throw new Error(`Packaged application audit failed:\n${failures.map((item) => `- ${item}`).join('\n')}`);

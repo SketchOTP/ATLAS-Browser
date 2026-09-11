@@ -150,6 +150,12 @@ Windows releases include an interactive NSIS installer and a portable executable
 
 Release packages contain no profile records, maintainer projects, cookies, OAuth tokens, API keys, browsing history, downloads, or personal settings. On first launch, ATLAS creates an empty generic local profile in the operating system's application-data directory and starts the walkthrough.
 
+### Window and agent recovery
+
+ATLAS 0.1.3 can recover from a missing GNOME X11 window-frame helper, a desktop failure that otherwise leaves the browser running but invisible. While ATLAS is open, it checks every 15 seconds and can restart the system-owned helper for the current display. Healthy helpers are left alone; recovery never restarts GNOME, logs you out, or changes monitor settings. Attempts are limited to three per five minutes. Windows, macOS, Wayland, and other window managers are unaffected. On Linux this requires the distribution's `/usr/libexec/mutter-x11-frames`, `xprop`, and `pgrep`; missing tools or denied inspection are logged without blocking the browser. Set `ATLAS_LINUX_WINDOW_RECOVERY=0` to disable recovery.
+
+Codex CLI disconnections are also isolated from the browser: a broken pipe or missing executable takes the agent offline, fails pending requests cleanly, and permits a new connection. These safeguards reduce the impact of known failures; they do not replace fixes from your operating-system vendor.
+
 ### Run from source
 
 ### Requirements

@@ -35,13 +35,14 @@ smoke_env=(
   ATLAS_DOWNLOADS_DIR="$smoke_root/downloads"
   ATLAS_BROWSER_PORT="$smoke_port"
   ATLAS_CODEX_BIN=/bin/false
+  ATLAS_LINUX_WINDOW_RECOVERY=0
 )
 if [[ "$app_path" == *.AppImage ]]; then
   smoke_env+=(APPIMAGE_EXTRACT_AND_RUN=1)
 fi
 
 setsid env "${smoke_env[@]}" \
-  "$app_path" --no-sandbox >"$smoke_root/atlas.log" 2>&1 &
+  "$app_path" --no-sandbox --remote-debugging-address=127.0.0.1 --remote-debugging-port=0 >"$smoke_root/atlas.log" 2>&1 &
 smoke_pid=$!
 
 for _attempt in $(seq 1 60); do
@@ -50,6 +51,9 @@ for _attempt in $(seq 1 60); do
   if curl --fail --silent "http://localhost:$smoke_port/" | grep --quiet '<title>ATLAS</title>'; then shell_ready=true; fi
   if grep --quiet 'MAIN_WINDOW_READY' "$smoke_root/profile/runtime-events.log" 2>/dev/null; then window_ready=true; fi
   if [[ "$shell_ready" == true && "$window_ready" == true ]]; then
+    sleep 3
+    kill -0 "$smoke_pid"
+    node "$project_dir/scripts/verify-clean-profile.mjs" "$smoke_root/profile" "http://localhost:$smoke_port"
     echo 'Packaged ATLAS smoke test passed: isolated shell and Electron window are ready.'
     exit 0
   fi
