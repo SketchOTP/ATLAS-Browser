@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('atlasBrowser', {
   getAgentStatus: () => ipcRenderer.invoke('atlas:agent-status'),
   getCodexRateLimits: () => ipcRenderer.invoke('atlas:codex-rate-limits'),
   getAgentUsage: () => ipcRenderer.invoke('atlas:agent-usage'),
+  getUsageHistory: () => ipcRenderer.invoke('atlas:usage-history'),
   getAgentProviderTemplates: () => ipcRenderer.invoke('atlas:agent-provider-templates'),
   configureAgentProvider: (config) => ipcRenderer.invoke('atlas:agent-provider-configure', config),
   testAgentProvider: () => ipcRenderer.invoke('atlas:agent-provider-test'),

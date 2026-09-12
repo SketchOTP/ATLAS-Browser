@@ -1,4 +1,4 @@
-import { app, BrowserWindow, WebContentsView, Menu, ipcMain, shell, nativeTheme, safeStorage, session as electronSession } from 'electron';
+import { app, BrowserWindow, WebContentsView, Menu, Tray, ipcMain, shell, nativeTheme, safeStorage, session as electronSession } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -17,12 +17,18 @@ import { migrateLegacyWebsiteCookies, normalizeProfileId, profileSessionPartitio
 import { isAllowedWebsiteUrl, websiteWindowRoute } from './website-window-routing.mjs';
 import { normalizeWebsiteMediaPermissions, websiteMediaPermissionAllowed } from './website-media-permissions.mjs';
 import { LinuxWindowRecovery } from './linux-window-recovery.mjs';
+import { UsageHistory } from './usage-history.mjs';
 
 let localServer;
 let browserWindow;
 let siteView;
 let applicationMenu;
 let agentServer;
+let usageHistory;
+let usageHistoryMonitorTimer = null;
+let usageHistorySampleRunning = false;
+let tray = null;
+let quitting = false;
 let agentStatus = { state: 'starting', message: 'Connecting to agent provider…' };
 let activeProviderConfig = { id: 'codex', secretId: 'default:codex' };
 let browserController;
@@ -41,6 +47,7 @@ const localTts = new LocalTtsService();
 const appIconPath = fileURLToPath(new URL('./public/assets/atlas-mark.png', import.meta.url));
 const secretsPath = () => path.join(app.getPath('userData'), 'agent-secrets.json');
 const websiteSessionMigrationPath = () => path.join(app.getPath('userData'), 'profile-website-session-migration.json');
+const usageHistoryPath = () => path.join(app.getPath('userData'), 'usage-history.br');
 const windowRecovery = new LinuxWindowRecovery({ log: (event) => logRuntimeEvent(event) });
 
 nativeTheme.themeSource = 'dark';
@@ -334,8 +341,8 @@ function buildApplicationMenu() {
         { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => sendToRenderer('atlas:app-command', 'new-tab') },
         { label: 'Close Current Tab', accelerator: 'CmdOrCtrl+W', click: () => sendToRenderer('atlas:app-command', 'close-tab') },
         { type: 'separator' },
-        { label: 'Close Window', click: () => browserWindow?.close() },
-        { role: 'quit' }
+        { label: 'Hide to Background', click: () => browserWindow?.close() },
+        { label: 'Quit ATLAS', click: () => app.quit() }
       ]
     },
     { role: 'editMenu' },
@@ -344,6 +351,12 @@ function buildApplicationMenu() {
     { label: 'Help', submenu: [{ label: `ATLAS Browser ${app.getVersion()}`, enabled: false }] }
   ]);
 }
+
+async function sampleUsageHistory() { if (usageHistorySampleRunning || !usageHistory || !agentServer) return; usageHistorySampleRunning = true; try { usageHistory.recordUsage(await agentServer.getUsage()); } catch {} finally { usageHistorySampleRunning = false; } }
+function startUsageHistoryMonitor() { if (usageHistoryMonitorTimer) return; void sampleUsageHistory(); usageHistoryMonitorTimer = setInterval(sampleUsageHistory, 60_000); }
+function stopUsageHistoryMonitor() { if (usageHistoryMonitorTimer) clearInterval(usageHistoryMonitorTimer); usageHistoryMonitorTimer = null; }
+function showATLASWindow() { if (!browserWindow || browserWindow.isDestroyed()) return createWindow(); if (browserWindow.isMinimized()) browserWindow.restore(); browserWindow.show(); browserWindow.focus(); }
+function ensureBackgroundTray() { if (tray) return; tray = new Tray(appIconPath); tray.setToolTip('ATLAS — monitoring usage'); tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open ATLAS', click: () => { void showATLASWindow(); } }, { type: 'separator' }, { label: 'Quit ATLAS', click: () => app.quit() }])); tray.on('click', () => { void showATLASWindow(); }); }
 
 function readEncryptedSecrets() {
   try { return JSON.parse(fs.readFileSync(secretsPath(), 'utf8')); } catch { return {}; }
@@ -425,23 +438,25 @@ async function createWindow() {
     return { action: 'deny' };
   });
   browserWindow.webContents.on('did-fail-load', (_event, code, description, url) => console.error(`SHELL_LOAD_FAILED ${code} ${description} ${url}`));
+  usageHistory = new UsageHistory({ filePath: usageHistoryPath() });
   agentServer = new AgentProviderManager({ cwd: fileURLToPath(new URL('.', import.meta.url)), executeTool: executeAgentTool, getSecret: async () => readEncryptedSecret(activeProviderConfig.secretId) });
   agentServer.configure(activeProviderConfig);
   agentServer.on('status', (status) => {
     agentStatus = status;
     sendToRenderer('atlas:agent-event', { method: 'atlas/status', params: status });
   });
-  agentServer.on('event', (event) => sendToRenderer('atlas:agent-event', event));
+  agentServer.on('event', (event) => { if (event?.method === 'account/rateLimits/updated') usageHistory?.recordUsage({ providerId: 'codex', source: 'native', payload: event.params }); sendToRenderer('atlas:agent-event', event); });
   agentServer.on('log', (message) => console.error(`CODEX_APP_SERVER ${message.trim()}`));
   agentServer.start().catch((error) => {
     agentStatus = { state: 'error', message: error.message };
     sendToRenderer('atlas:agent-event', { method: 'atlas/status', params: agentStatus });
   });
+  startUsageHistoryMonitor();
   await browserWindow.loadURL(`${localShellOrigin}/`);
   rendererReady = true;
   flushExternalUrls();
   logRuntimeEvent('MAIN_WINDOW_READY');
-  browserWindow.on('close', () => logRuntimeEvent('MAIN_WINDOW_CLOSE_REQUESTED'));
+  browserWindow.on('close', (event) => { if (!quitting) { event.preventDefault(); browserWindow.hide(); logRuntimeEvent('MAIN_WINDOW_HIDDEN_BACKGROUND'); return; } logRuntimeEvent('MAIN_WINDOW_CLOSE_REQUESTED'); });
   browserWindow.on('closed', () => {
     logRuntimeEvent('MAIN_WINDOW_CLOSED');
     rendererReady = false;
@@ -541,8 +556,9 @@ ipcMain.handle('atlas:agent-status', async () => {
   await agentServer?.start();
   return agentStatus;
 });
-ipcMain.handle('atlas:agent-usage', () => agentServer.getUsage());
-ipcMain.handle('atlas:codex-rate-limits', () => agentServer.getUsage());
+ipcMain.handle('atlas:agent-usage', async () => { const usage = await agentServer.getUsage(); usageHistory?.recordUsage(usage); return usage; });
+ipcMain.handle('atlas:codex-rate-limits', async () => { const usage = await agentServer.getUsage(); usageHistory?.recordUsage(usage); return usage; });
+ipcMain.handle('atlas:usage-history', () => usageHistory?.snapshot() || { retentionMonths: 12, sampledAt: Date.now(), observations: [] });
 ipcMain.handle('atlas:agent-provider-templates', () => Object.values(providerTemplates));
 ipcMain.handle('atlas:agent-provider-configure', async (_event, config) => {
   const providerId = providerTemplates[config?.id] ? config.id : 'codex';
@@ -664,6 +680,7 @@ app.whenReady().then(() => {
   windowRecovery.start();
   applicationMenu = buildApplicationMenu();
   Menu.setApplicationMenu(applicationMenu);
+  ensureBackgroundTray();
   return createWindow();
 });
 app.on('render-process-gone', (_event, webContents, details) => {
@@ -673,6 +690,8 @@ app.on('child-process-gone', (_event, details) => {
   logRuntimeEvent('CHILD_PROCESS_GONE', `type=${details.type} reason=${details.reason} exit=${details.exitCode} name=${details.name || ''}`);
 });
 app.on('before-quit', () => {
+  quitting = true;
+  stopUsageHistoryMonitor();
   windowRecovery.stop();
   logRuntimeEvent('APP_BEFORE_QUIT');
 });
@@ -686,4 +705,5 @@ app.on('window-all-closed', () => {
 });
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  else void showATLASWindow();
 });

@@ -24,7 +24,7 @@
         <button id="add-project" class="menu-item quick-menu-item quick-add-project" data-tooltip="New project" aria-label="Add project"><span class="quick-add-symbol" aria-hidden="true">+</span></button>
       </nav>
       <div id="projects" class="projects"></div>
-      <div id="codex-usage" class="sidebar-footer codex-usage" title="Loading Codex subscription usage"><div class="meter"><i id="codex-usage-meter"></i></div><div class="storage"><span>Agent Usage Remaining</span><span id="codex-usage-percent">—</span></div></div>
+      <footer class="agent-usage-footer"><button id="codex-usage" class="sidebar-footer codex-usage" type="button"><div class="meter"><i id="codex-usage-meter"></i></div><div class="storage"><span>Agent Usage Remaining</span><span id="codex-usage-percent">—</span></div></button></footer>
     </aside>
     <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Projects sidebar" aria-valuemin="210" aria-valuemax="460" aria-valuenow="268" tabindex="0"></div>
     <main class="main">
@@ -222,6 +222,7 @@
       <div class="modal-actions"><button id="delete-calendar-event" class="danger-button hidden" type="button">Delete event</button><span class="modal-spacer"></span><button id="cancel-calendar-event" class="secondary-button" type="button">Cancel</button><button class="primary" type="submit">Save event</button></div>
     </form>
   </div>
+  <div id="usage-analytics-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true"><section class="usage-analytics-modal"><header class="modal-head"><div><div class="eyebrow">Usage tracking</div><h2>Local Usage Ledger</h2><p>Observed remaining usage from the active provider.</p></div><button id="close-usage-analytics" class="modal-close" type="button">×</button></header><div id="usage-summary" class="usage-summary"></div><div id="usage-chart" class="usage-chart"></div><aside class="usage-method-note">Stores compact hourly values locally for 12 months. Rapid availability increases are marked as resets. Closing ATLAS hides it to the tray so sampling continues; Quit stops it.</aside></section></div>
   <div id="emoji-picker" class="emoji-picker hidden" role="dialog" aria-label="Choose a tab emoji">
     <div class="emoji-picker-head"><strong>Choose an emoji</strong><button id="close-emoji-picker" type="button" aria-label="Close">×</button></div>
     <label class="emoji-search"><span aria-hidden="true">⌕</span><input id="emoji-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search emojis…" aria-label="Search emojis" /></label>

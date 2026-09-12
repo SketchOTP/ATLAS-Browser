@@ -219,6 +219,7 @@ let bookmarkPointerDrag = null;
 let suppressBookmarkClick = false;
 let agentRuntimeStatus = { state: 'starting', message: 'Connecting to agent provider…', providerId: activeProfile().settings.agentProvider.id };
 let agentUsage = null;
+let usageHistory = null;
 let privacyStatus = { mode: activeProfile().settings.privacyMode, blockedRequests: 0, cleanedLinks: 0 };
 let providerTemplates = [];
 let walkthroughStep = -1;
@@ -828,6 +829,20 @@ function renderAgentUsage(payload = agentUsage) {
   const providerName = agentRuntimeStatus.providerName || providerTemplates.find((provider) => provider.id === activeProfile().settings.agentProvider.id)?.name || 'Agent provider';
   $('codex-usage').title = available ? `${providerName} usage remaining: ${Math.round(remainingPercent)}%. ${resetText}.` : `${providerName} does not currently report remaining subscription usage. Configure a usage source in Settings.`;
 }
+
+function renderUsageHistory() {
+  const points = usageHistory?.observations || [];
+  const last = points.at(-1);
+  const resets = points.reduce((total, point) => total + (point.resets?.length || 0), 0);
+  $('usage-summary').innerHTML = `<div>Latest remaining<br><strong>${last ? `${Math.round(last.remaining)}%` : '—'}</strong></div><div>Recorded hours<br><strong>${points.length}</strong></div><div>Resets detected<br><strong>${resets}</strong></div>`;
+  if (!points.length) { $('usage-chart').textContent = 'No provider usage observations yet.'; return; }
+  const recent = points.slice(-24); const width = 820; const height = 210;
+  const path = recent.map((point, index) => `${index ? 'L' : 'M'} ${(30 + index * (760 / Math.max(1, recent.length - 1))).toFixed(1)} ${(15 + (100 - point.remaining) * 1.65).toFixed(1)}`).join(' ');
+  const resetMarks = recent.map((point, index) => point.resets?.length ? `<circle cx="${(30 + index * (760 / Math.max(1, recent.length - 1))).toFixed(1)}" cy="${(15 + (100 - point.remaining) * 1.65).toFixed(1)}" r="6" fill="#ffbd42"/>` : '').join('');
+  $('usage-chart').innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-label="Remaining usage history"><path d="${path}" fill="none" stroke="var(--atlas-accent-bright)" stroke-width="3" stroke-linecap="round"/>${resetMarks}</svg>`;
+}
+async function openUsageAnalytics() { $('usage-analytics-modal').classList.remove('hidden'); try { await refreshAgentUsage(); usageHistory = await window.atlasBrowser.getUsageHistory(); renderUsageHistory(); } catch { renderUsageHistory(); } }
+function closeUsageAnalytics() { $('usage-analytics-modal').classList.add('hidden'); }
 
 async function refreshAgentUsage() {
   if (!isElectron || !window.atlasBrowser.getAgentUsage) return renderAgentUsage(null);
@@ -2788,7 +2803,7 @@ async function executeAtlasAgentTool(request) {
 
 function handleAgentEvent(message) {
   if (message.method === 'atlas/status') { agentRuntimeStatus = message.params; renderAgentWorkspace(); return; }
-  if (message.method === 'account/rateLimits/updated') { agentUsage = { providerId: 'codex', source: 'native', payload: message.params }; renderAgentUsage(agentUsage); return; }
+  if (message.method === 'account/rateLimits/updated') { agentUsage = { providerId: 'codex', source: 'native', payload: message.params }; renderAgentUsage(agentUsage); if (!$('usage-analytics-modal').classList.contains('hidden')) window.atlasBrowser.getUsageHistory().then((value) => { usageHistory = value; renderUsageHistory(); }); return; }
   const located = findAgentSessionByThread(message.params?.threadId);
   if (!located) return;
   const { profile, session } = located;
@@ -3280,6 +3295,9 @@ bindColorPicker('bookmark-color', setBookmarkColor);
 bindColorPicker('bookmark-text-color', setBookmarkTextColor);
 $('bookmark-apply-all').addEventListener('change', (event) => { $('bookmark-scope-state').textContent = event.target.checked ? 'All projects' : 'This project only'; });
 $('go').addEventListener('click', navigateCurrentTab);
+$('codex-usage').addEventListener('click', openUsageAnalytics);
+$('close-usage-analytics').addEventListener('click', closeUsageAnalytics);
+$('usage-analytics-modal').addEventListener('click', (event) => { if (event.target === $('usage-analytics-modal')) closeUsageAnalytics(); });
 $('address').addEventListener('keydown', (event) => { if (event.key === 'Enter') navigateCurrentTab(); });
 $('open-page').addEventListener('click', () => { const tab = currentTab(); if (tab?.url) window.open(tab.url, '_blank', 'noopener'); });
 $('send-agent').addEventListener('click', () => sendAgentMessage('agent-input'));
@@ -3627,6 +3645,7 @@ document.addEventListener('keydown', (event) => {
   else if (!$('bookmark-manager').classList.contains('hidden')) closeBookmarkManager();
   else if (!$('settings-modal').classList.contains('hidden')) closeSettings();
   else if (!$('calendar-event-modal').classList.contains('hidden')) closeCalendarEventEditor();
+  else if (!$('usage-analytics-modal').classList.contains('hidden')) closeUsageAnalytics();
   else if (!$('calendar-modal').classList.contains('hidden')) closeCalendar();
   else if (!$('download-popover').classList.contains('hidden')) closeDownloads();
   else if (!$('notification-popover').classList.contains('hidden')) closeNotifications();
