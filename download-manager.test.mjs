@@ -13,6 +13,7 @@ class MockDownload extends EventEmitter {
     this.receivedBytes = 0;
     this.totalBytes = 12;
     this.savePath = '';
+    this.cancelled = false;
   }
 
   getFilename() { return this.filename; }
@@ -22,6 +23,7 @@ class MockDownload extends EventEmitter {
   getReceivedBytes() { return this.receivedBytes; }
   getPercentComplete() { return this.totalBytes ? (this.receivedBytes / this.totalBytes) * 100 : 0; }
   setSavePath(value) { this.savePath = value; }
+  cancel() { this.cancelled = true; }
 }
 
 test('captures project context and links only an explicitly authorized Library file', async (t) => {
@@ -54,6 +56,31 @@ test('captures project context and links only an explicitly authorized Library f
   assert.deepEqual(await manager.libraryFileStatus({ profileId: 'profile-1', projectId: 'project-1', resourceId: 'resource-1' }), { available: true, fileName: 'research.txt', size: 12 });
   await assert.rejects(() => manager.readLibraryFile({ profileId: 'profile-1', projectId: 'project-1', resourceId: 'resource-2' }), /not authorized/);
   await assert.rejects(() => manager.readLibraryFile({ profileId: 'profile-1', projectId: 'project-2', resourceId: 'resource-1' }), /not authorized/);
+});
+
+test('blocks an automatic repeat of the same file from the same website tab for ten minutes', async (t) => {
+  const downloadsPath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'atlas-download-repeat-'));
+  t.after(() => fs.promises.rm(downloadsPath, { recursive: true, force: true }));
+  const events = [];
+  const browserSession = new EventEmitter();
+  let currentTime = 0;
+  const manager = new DownloadManager({ downloadsPath, onEvent: (event) => events.push(event), now: () => currentTime });
+  manager.setContext({ profileId: 'profile-1', projectId: 'project-1', tabId: 'tab-1' });
+  manager.attach(browserSession);
+
+  const original = new MockDownload('model.stl');
+  const repeated = new MockDownload('model.stl');
+  browserSession.emit('will-download', {}, original);
+  browserSession.emit('will-download', {}, repeated);
+  assert.equal(original.cancelled, false);
+  assert.equal(repeated.cancelled, true);
+  assert.equal(events.length, 1);
+
+  currentTime += 10 * 60 * 1000;
+  const later = new MockDownload('model.stl');
+  browserSession.emit('will-download', {}, later);
+  assert.equal(later.cancelled, false);
+  assert.equal(events.length, 2);
 });
 
 test('uses collision-safe names and only opens files inside the configured downloads folder', async (t) => {

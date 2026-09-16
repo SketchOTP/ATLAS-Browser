@@ -1,7 +1,7 @@
 {
   "name": "atlas-browser",
   "productName": "ATLAS",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A project-centered desktop browser for agentic research, durable context, and focused execution.",
   "private": true,
   "type": "module",

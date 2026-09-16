@@ -13,6 +13,12 @@ All notable changes to ATLAS are documented here. This project follows
 - Profile export, import, and encrypted backup
 - Broader accessibility and platform certification
 
+## [0.1.7] - 2026-09-15
+
+### Fixed
+
+- Prevent a website from repeatedly saving the same filename from one browser tab. Duplicate attempts are cancelled for ten minutes, before a new file path is created.
+
 ## [0.1.5] - 2026-09-10
 
 ### Added
@@ -76,7 +82,8 @@ All notable changes to ATLAS are documented here. This project follows
 - Encrypted storage for OpenAI-compatible API keys through Electron `safeStorage`
 - Strict release allowlist that excludes local profiles, credentials, cookies, downloads, logs, and generated runtime state
 
-[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.6...v0.1.7
 [0.1.5]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.2...v0.1.3

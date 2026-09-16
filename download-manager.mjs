@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+const REPEATED_DOWNLOAD_WINDOW_MS = 10 * 60 * 1000;
+
 function safeFilename(value) {
   const filename = path.basename(String(value || '').replace(/[\u0000-\u001f]/g, '').trim());
   return filename && filename !== '.' && filename !== '..' ? filename : `download-${Date.now()}`;
@@ -23,14 +25,16 @@ function isInsideDirectory(parentPath, candidatePath) {
 }
 
 export class DownloadManager {
-  constructor({ downloadsPath, onEvent = () => {}, openPath = async () => '', getContextForWebContents = () => null }) {
+  constructor({ downloadsPath, onEvent = () => {}, openPath = async () => '', getContextForWebContents = () => null, now = () => Date.now() }) {
     this.downloadsPath = path.resolve(downloadsPath);
     this.onEvent = onEvent;
     this.openPath = openPath;
     this.getContextForWebContents = getContextForWebContents;
+    this.now = now;
     this.context = { profileId: '', projectId: '', tabId: '' };
     this.records = new Map();
     this.libraryLinks = new Map();
+    this.recentDownloads = new Map();
     this.attachedSessions = new WeakSet();
   }
 
@@ -101,8 +105,21 @@ export class DownloadManager {
   }
 
   #track(item, context) {
+    const requestedName = safeFilename(item.getFilename());
+    const duplicateKey = this.#duplicateKey(requestedName, context);
+    const currentTime = this.now();
+    const previousDownloadAt = this.recentDownloads.get(duplicateKey);
+    if (previousDownloadAt !== undefined && currentTime - previousDownloadAt < REPEATED_DOWNLOAD_WINDOW_MS) {
+      item.cancel?.();
+      console.warn(`DOWNLOAD_REPEAT_BLOCKED file=${requestedName} profile=${context.profileId || 'unknown'} project=${context.projectId || 'unknown'} tab=${context.tabId || 'unknown'}`);
+      return;
+    }
+    this.recentDownloads.set(duplicateKey, currentTime);
+    for (const [key, timestamp] of this.recentDownloads) {
+      if (currentTime - timestamp >= REPEATED_DOWNLOAD_WINDOW_MS) this.recentDownloads.delete(key);
+    }
     const id = randomUUID();
-    const savePath = availableDownloadPath(this.downloadsPath, item.getFilename());
+    const savePath = availableDownloadPath(this.downloadsPath, requestedName);
     item.setSavePath(savePath);
     const record = {
       id,
@@ -141,6 +158,10 @@ export class DownloadManager {
       this.onEvent({ ...record, event: 'done' });
       if (state !== 'completed') this.records.delete(id);
     });
+  }
+
+  #duplicateKey(fileName, context) {
+    return [context?.profileId || '', context?.projectId || '', context?.tabId || '', fileName.toLowerCase()].join('\u0000');
   }
 }
 
