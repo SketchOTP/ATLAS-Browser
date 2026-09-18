@@ -29,6 +29,9 @@ try {
     }
   }
   const failures = [];
+  for (const required of ['electron-main.mjs', 'usage-history.mjs', 'website-memory-recovery.mjs']) {
+    if (!fs.existsSync(path.join(extractRoot, required))) failures.push(`missing required runtime module: ${required}`);
+  }
   for (const file of files) {
     const relative = path.relative(extractRoot, file).split(path.sep).join('/');
     if (/(^|\/)(Cookies|Local State|Preferences|WebStorage|Session Storage|IndexedDB|Local Storage|Browser|agent-secrets\.json|auth\.json|\.codex|\.codex-atlas|graft)(\/|$)/i.test(relative)

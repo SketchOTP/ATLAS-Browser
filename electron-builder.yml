@@ -21,7 +21,9 @@ files:
   - privacy-shield.mjs
   - profile-website-sessions.mjs
   - project-browser-isolation.mjs
+  - usage-history.mjs
   - website-media-permissions.mjs
+  - website-memory-recovery.mjs
   - website-window-routing.mjs
   - public/**/*
   - package.json
