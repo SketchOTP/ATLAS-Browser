@@ -3680,6 +3680,9 @@ if (isElectron) {
     save();
     if (tab.iconMode === 'favicon') renderTabs(currentProject());
   });
+  window.atlasBrowser.onSiteHealth?.((payload) => {
+    if (matchesCurrentBrowserContext(payload?.context) && payload.state === 'recovering') toast('This website was reloaded to keep ATLAS responsive.');
+  });
   window.atlasBrowser.onSendSelectionToLibrary((payload) => { if (matchesCurrentBrowserContext(payload?.context)) saveWebSelectionToLibrary(payload); });
   window.atlasBrowser.onDownloadEvent(handleDownloadEvent);
   window.atlasBrowser.onPrivacyStatus(renderPrivacyStatus);

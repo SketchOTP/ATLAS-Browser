@@ -18,6 +18,7 @@ import { isAllowedWebsiteUrl, websiteWindowRoute } from './website-window-routin
 import { normalizeWebsiteMediaPermissions, websiteMediaPermissionAllowed } from './website-media-permissions.mjs';
 import { LinuxWindowRecovery } from './linux-window-recovery.mjs';
 import { UsageHistory } from './usage-history.mjs';
+import { shouldRecoverActiveWebsite } from './website-memory-recovery.mjs';
 
 let localServer;
 let browserWindow;
@@ -42,6 +43,7 @@ const websitePopups = new Map();
 const websiteContentsContexts = new WeakMap();
 const profileWebsiteRuntimes = new Map();
 const profileWebsiteMediaPermissions = new Map();
+const activeWebsiteRecoveryAt = new Map();
 let siteBounds = { x: 0, y: 0, width: 0, height: 0, visible: false };
 const localTts = new LocalTtsService();
 const appIconPath = fileURLToPath(new URL('./public/assets/atlas-mark.png', import.meta.url));
@@ -49,6 +51,7 @@ const secretsPath = () => path.join(app.getPath('userData'), 'agent-secrets.json
 const websiteSessionMigrationPath = () => path.join(app.getPath('userData'), 'profile-website-session-migration.json');
 const usageHistoryPath = () => path.join(app.getPath('userData'), 'usage-history.br');
 const windowRecovery = new LinuxWindowRecovery({ log: (event) => logRuntimeEvent(event) });
+let activeWebsiteRecoveryTimer = null;
 
 nativeTheme.themeSource = 'dark';
 const useLinuxSoftwareGraphics = process.platform === 'linux' && process.env.ATLAS_HARDWARE_ACCELERATION !== '1';
@@ -315,6 +318,46 @@ function removeProjectWebsiteView(view) {
   try { if (!view.webContents.isDestroyed()) view.webContents.close(); } catch {}
 }
 
+function recoverActiveWebsiteIfNeeded() {
+  const record = projectBrowsers.active();
+  const contents = record?.value?.webContents;
+  if (!record || !contents || contents.isDestroyed() || !contents.getURL()) return false;
+  const pid = contents.getOSProcessId();
+  const metric = app.getAppMetrics().find((entry) => entry.pid === pid);
+  const privateBytes = Number(metric?.memory?.privateBytes) || 0;
+  if (!shouldRecoverActiveWebsite({
+    record,
+    activeKey: projectBrowsers.active()?.key,
+    privateBytes,
+    previousRecoveryAt: activeWebsiteRecoveryAt.get(record.key)
+  })) return false;
+  activeWebsiteRecoveryAt.set(record.key, Date.now());
+  const url = contents.getURL();
+  sendWebsiteEvent(record.value, record.context, 'atlas:site-health', { state: 'recovering', reason: 'private-memory-limit', url });
+  logRuntimeEvent('TAB_RECOVERY', `profile=${record.context.profileId} project=${record.context.projectId} tab=${record.context.tabId} reason=private-memory-limit privateBytes=${privateBytes}`);
+  try { contents.reloadIgnoringCache(); }
+  catch (error) {
+    console.error(`TAB_RECOVERY_FAILED context=${browserContextKey(record.context)} ${error.message}`);
+    return false;
+  }
+  return true;
+}
+
+function startActiveWebsiteRecoveryMonitor() {
+  if (activeWebsiteRecoveryTimer) return;
+  const check = () => recoverActiveWebsiteIfNeeded();
+  activeWebsiteRecoveryTimer = setInterval(check, 60_000);
+  activeWebsiteRecoveryTimer.unref?.();
+  const initialCheck = setTimeout(check, 5_000);
+  initialCheck.unref?.();
+}
+
+function stopActiveWebsiteRecoveryMonitor() {
+  if (!activeWebsiteRecoveryTimer) return;
+  clearInterval(activeWebsiteRecoveryTimer);
+  activeWebsiteRecoveryTimer = null;
+}
+
 function activateProjectWebsiteView(value) {
   const context = normalizeBrowserContext(value);
   activeWebsiteProfileId = context.profileId;
@@ -456,6 +499,7 @@ async function createWindow() {
   rendererReady = true;
   flushExternalUrls();
   logRuntimeEvent('MAIN_WINDOW_READY');
+  startActiveWebsiteRecoveryMonitor();
   browserWindow.on('close', (event) => { if (!quitting) { event.preventDefault(); browserWindow.hide(); logRuntimeEvent('MAIN_WINDOW_HIDDEN_BACKGROUND'); return; } logRuntimeEvent('MAIN_WINDOW_CLOSE_REQUESTED'); });
   browserWindow.on('closed', () => {
     logRuntimeEvent('MAIN_WINDOW_CLOSED');
@@ -466,6 +510,7 @@ async function createWindow() {
     activeWebsiteProfileId = '';
     browserWindow = null;
     siteView = null;
+    stopActiveWebsiteRecoveryMonitor();
   });
   localTts.synthesize({ text: 'Ready.', voice: 'af_heart', speed: 1 }).then(() => console.log('KOKORO_WARMUP_READY')).catch((error) => console.error(`KOKORO_WARMUP ${error.message}`));
 }
@@ -692,6 +737,7 @@ app.on('child-process-gone', (_event, details) => {
 app.on('before-quit', () => {
   quitting = true;
   stopUsageHistoryMonitor();
+  stopActiveWebsiteRecoveryMonitor();
   windowRecovery.stop();
   logRuntimeEvent('APP_BEFORE_QUIT');
 });

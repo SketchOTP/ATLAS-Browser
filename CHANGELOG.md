@@ -13,6 +13,12 @@ All notable changes to ATLAS are documented here. This project follows
 - Profile export, import, and encrypted backup
 - Broader accessibility and platform certification
 
+## [0.1.8] - 2026-09-18
+
+### Fixed
+
+- Monitor the active website renderer for runaway private-memory growth. If it crosses the safety limit, ATLAS reloads that tab once and clearly notifies the user instead of allowing the browser to remain frozen. A five-minute cooldown prevents reload loops.
+
 ## [0.1.7] - 2026-09-15
 
 ### Fixed
@@ -82,7 +88,8 @@ All notable changes to ATLAS are documented here. This project follows
 - Encrypted storage for OpenAI-compatible API keys through Electron `safeStorage`
 - Strict release allowlist that excludes local profiles, credentials, cookies, downloads, logs, and generated runtime state
 
-[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.6...v0.1.7
 [0.1.5]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/SketchOTP/ATLAS-Browser/compare/v0.1.3...v0.1.4

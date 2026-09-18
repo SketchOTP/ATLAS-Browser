@@ -1,7 +1,7 @@
 {
   "name": "atlas-browser",
   "productName": "ATLAS",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "A project-centered desktop browser for agentic research, durable context, and focused execution.",
   "private": true,
   "type": "module",
@@ -28,8 +28,8 @@
   "scripts": {
     "start": "electron .",
     "serve": "node server.mjs",
-    "check": "node --check linux-window-recovery.mjs && node --check server.mjs && node --check electron-main.mjs && node --check preload.cjs && node --check codex-agent.mjs && node --check agent-providers.mjs && node --check browser-control.mjs && node --check download-manager.mjs && node --check privacy-shield.mjs && node --check profile-website-sessions.mjs && node --check project-browser-isolation.mjs && node --check usage-history.mjs && node --check website-media-permissions.mjs && node --check website-window-routing.mjs && node --check public/app.js",
-    "test": "node --test linux-window-recovery.test.mjs codex-agent-transport.test.mjs codex-agent-tools.test.mjs download-manager.test.mjs local-tts.test.mjs privacy-shield.test.mjs profile-website-sessions.test.mjs project-browser-isolation.test.mjs usage-history.test.mjs website-media-permissions.test.mjs website-window-routing.test.mjs public/tests/*.test.mjs",
+    "check": "node --check linux-window-recovery.mjs && node --check website-memory-recovery.mjs && node --check server.mjs && node --check electron-main.mjs && node --check preload.cjs && node --check codex-agent.mjs && node --check agent-providers.mjs && node --check browser-control.mjs && node --check download-manager.mjs && node --check privacy-shield.mjs && node --check profile-website-sessions.mjs && node --check project-browser-isolation.mjs && node --check usage-history.mjs && node --check website-media-permissions.mjs && node --check website-window-routing.mjs && node --check public/app.js",
+    "test": "node --test linux-window-recovery.test.mjs website-memory-recovery.test.mjs codex-agent-transport.test.mjs codex-agent-tools.test.mjs download-manager.test.mjs local-tts.test.mjs privacy-shield.test.mjs profile-website-sessions.test.mjs project-browser-isolation.test.mjs usage-history.test.mjs website-media-permissions.test.mjs website-window-routing.test.mjs public/tests/*.test.mjs",
     "audit:release": "node scripts/audit-release.mjs",
     "screenshots": "ATLAS_BROWSER_PORT=49282 node scripts/capture-release-screenshots.mjs",
     "package:dir": "electron-builder --dir",
